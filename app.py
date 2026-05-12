@@ -35,6 +35,15 @@ def get_sender_name(event):
     except:
         return "未知用戶"
 
+def get_setting(key):
+    result = supabase.table("settings").select("value").eq("key", key).execute()
+    if result.data:
+        return result.data[0]["value"]
+    return None
+
+def set_setting(key, value):
+    supabase.table("settings").update({"value": value}).eq("key", key).execute()
+
 def save_message(text, sender, file_url="", file_type="none"):
     supabase.table("messages").insert({
         "text": text,
@@ -54,7 +63,7 @@ def upload_file(content, filename, content_type):
     except:
         return ""
 
-def analyze_year(year, messages):
+def analyze_messages(title, messages):
     conversation = ""
     for msg in messages:
         time = msg.get("created_at", "")
@@ -66,7 +75,7 @@ def analyze_year(year, messages):
             line += f" 📎{file_url}"
         conversation += line + "\n"
 
-    prompt = f"""以下是{year}年的LINE群組客服對話記錄，請整理成Q&A格式。
+    prompt = f"""以下是LINE群組的客服對話記錄（{title}），請整理成Q&A格式。
 
 規則：
 1. 自動判斷哪些訊息是問題、哪些是回答
@@ -81,7 +90,7 @@ def analyze_year(year, messages):
 {conversation[:50000]}
 
 請用以下格式輸出：
-【{year}年 Q&A整理】
+【{title} Q&A整理】
 
 Q1：[問題內容]
 時間：[時間] 提問者：[姓名]
@@ -94,14 +103,16 @@ A：[回答內容]
     response = model.generate_content(prompt)
     return response.text
 
-def send_email_with_docx(all_qa_content):
+def send_email_with_docx(all_qa_content, subject_note=""):
     doc = Document()
     doc.add_heading('LINE 群組 Q&A 整理報告', 0)
     doc.add_paragraph(f"整理時間：{datetime.now().strftime('%Y/%m/%d %H:%M')}")
+    if subject_note:
+        doc.add_paragraph(f"整理範圍：{subject_note}")
     doc.add_paragraph("")
 
-    for year, content in all_qa_content:
-        doc.add_heading(f"{year}年", level=1)
+    for title, content in all_qa_content:
+        doc.add_heading(title, level=1)
         for line in content.split("\n"):
             doc.add_paragraph(line)
         doc.add_paragraph("")
@@ -114,8 +125,8 @@ def send_email_with_docx(all_qa_content):
     resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": TO_EMAIL,
-        "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')}",
-        "html": "<p>您好，附件為整理後的完整 Q&A 文件，請查收。</p>",
+        "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')} {subject_note}",
+        "html": f"<p>您好，附件為整理後的 Q&A 文件（{subject_note}），請確認格式與內容是否正確。</p>",
         "attachments": [{
             "filename": f"QA整理_{datetime.now().strftime('%Y%m%d')}.docx",
             "content": encoded
@@ -140,25 +151,57 @@ def handle_text(event):
     if text == "整理QA":
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⏳ 正在分析所有年份對話，需要約5~10分鐘，完成後會寄信通知您...")
+            TextSendMessage(text="⏳ 正在分析對話，需要約5~10分鐘，完成後會寄信通知您確認...")
         )
         try:
-            years = ["2019","2020","2021","2022","2023","2024","2025","2026"]
-            all_qa = []
-            for year in years:
+            first_run_done = get_setting("first_run_done")
+
+            if first_run_done != "true":
+                # 第一次：分析 2019~2026 所有資料
+                years = ["2019","2020","2021","2022","2023","2024","2025","2026"]
+                all_qa = []
+                for year in years:
+                    result = supabase.table("messages").select("*")\
+                        .like("created_at", f"{year}%")\
+                        .order("id").execute()
+                    msgs = result.data
+                    if msgs:
+                        qa = analyze_messages(f"{year}年", msgs)
+                        all_qa.append((f"{year}年", qa))
+
+                send_email_with_docx(all_qa, "2019~2026全部資料（請確認格式與內容）")
+
+                # 更新設定
+                set_setting("first_run_done", "true")
+                set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
+
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text="✅ 第一次整理完成！已寄送 2019~2026 完整 Q&A 報告到您的信箱，請確認格式與內容是否正確。\n\n確認無誤後，之後輸入「整理QA」將只整理新增對話！")
+                )
+            else:
+                # 之後：只分析上次整理後新增的訊息
+                last_date = get_setting("last_analyzed_date")
                 result = supabase.table("messages").select("*")\
-                    .like("created_at", f"{year}%")\
+                    .like("created_at", "2026%")\
+                    .gt("created_at", last_date)\
                     .order("id").execute()
                 msgs = result.data
-                if msgs:
-                    qa = analyze_year(year, msgs)
-                    all_qa.append((year, qa))
 
-            send_email_with_docx(all_qa)
-            line_bot_api.push_message(
-                event.source.group_id,
-                TextSendMessage(text="✅ Q&A 整理完成！已寄送 Word 檔到您的信箱，請查收。")
-            )
+                if not msgs:
+                    line_bot_api.push_message(
+                        event.source.group_id,
+                        TextSendMessage(text="目前沒有新的對話需要整理！")
+                    )
+                else:
+                    qa = analyze_messages(f"新增對話（{last_date} 之後）", msgs)
+                    send_email_with_docx([(f"新增對話", qa)], f"{last_date}之後新增對話")
+                    set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                    line_bot_api.push_message(
+                        event.source.group_id,
+                        TextSendMessage(text=f"✅ 新增對話整理完成！共 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認！")
+                    )
+
         except Exception as e:
             line_bot_api.push_message(
                 event.source.group_id,
