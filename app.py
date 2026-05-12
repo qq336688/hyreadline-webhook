@@ -3,9 +3,11 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (MessageEvent, TextMessage, TextSendMessage,
                              ImageMessage, FileMessage)
-import os, io, resend
+import os, io, resend, google.generativeai as genai
 from docx import Document
 from supabase import create_client
+import base64
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -20,6 +22,9 @@ supabase = create_client(
     os.environ.get("SUPABASE_KEY")
 )
 
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
+
 def get_sender_name(event):
     try:
         profile = line_bot_api.get_group_member_profile(
@@ -30,13 +35,14 @@ def get_sender_name(event):
     except:
         return "未知用戶"
 
-def save_message(text, sender, msg_type, file_url=""):
+def save_message(text, sender, file_url="", file_type="none"):
     supabase.table("messages").insert({
         "text": text,
         "sender": sender,
-        "type": msg_type,
+        "type": "message",
         "file_url": file_url,
-        "file_type": "none"
+        "file_type": file_type,
+        "created_at": datetime.now().isoformat()
     }).execute()
 
 def upload_file(content, filename, content_type):
@@ -50,47 +56,69 @@ def upload_file(content, filename, content_type):
     except:
         return ""
 
-def send_email_with_docx(qa_list):
+def analyze_with_gemini(messages):
+    conversation = ""
+    for msg in messages:
+        time = msg.get("created_at", "")[:16].replace("T", " ")
+        sender = msg.get("sender", "未知")
+        text = msg.get("text", "")
+        file_url = msg.get("file_url", "")
+        
+        line = f"[{time}] {sender}：{text}"
+        if file_url:
+            line += f" 📎{file_url}"
+        conversation += line + "\n"
+
+    prompt = f"""以下是一個LINE群組的對話記錄，請幫我整理成Q&A格式。
+
+規則：
+1. 自動判斷哪些訊息是問題、哪些是回答
+2. 相同或相似的問題合併成一個Q
+3. 每個Q後面標明提問者（可能多人）和時間
+4. 每個A後面標明回答者和時間
+5. 如果問題或回答有附圖/附檔，附上連結
+6. 沒有明確問答關係的訊息可以忽略
+
+對話記錄：
+{conversation}
+
+請用以下格式輸出：
+Q1：[問題內容]
+時間：[時間]
+提問者：[姓名]
+（如有附件）📎 [連結]
+
+A：[回答內容]
+時間：[時間]
+回答者：[姓名]
+（如有附件）📎 [連結]
+
+---
+"""
+    response = model.generate_content(prompt)
+    return response.text
+
+def send_email_with_docx(qa_content):
     doc = Document()
     doc.add_heading('LINE 群組 Q&A 整理報告', 0)
+    doc.add_paragraph(f"整理時間：{datetime.now().strftime('%Y/%m/%d %H:%M')}")
+    doc.add_paragraph("")
     
-    q_num = 0
-    i = 0
-    while i < len(qa_list):
-        msg = qa_list[i]
-        if msg["type"] == "問題":
-            q_num += 1
-            p = doc.add_paragraph()
-            p.add_run(f"Q{q_num}（{msg['sender']}）：{msg['text']}").bold = True
-            if msg.get("file_url"):
-                doc.add_paragraph(f"📎 {msg['file_url']}")
-            j = i + 1
-            while j < len(qa_list) and qa_list[j]["type"] == "回答":
-                a = qa_list[j]
-                p2 = doc.add_paragraph()
-                p2.add_run(f"A（{a['sender']}）：{a['text']}")
-                if a.get("file_url"):
-                    doc.add_paragraph(f"📎 {a['file_url']}")
-                j += 1
-            doc.add_paragraph("")
-            i = j
-        else:
-            i += 1
+    for line in qa_content.split("\n"):
+        doc.add_paragraph(line)
 
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
-
-    import base64
     encoded = base64.b64encode(buffer.read()).decode()
 
     resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": TO_EMAIL,
-        "subject": "LINE 群組 Q&A 整理報告",
+        "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')}",
         "html": "<p>您好，附件為整理後的 Q&A 文件，請查收。</p>",
         "attachments": [{
-            "filename": "QA整理.docx",
+            "filename": f"QA整理_{datetime.now().strftime('%Y%m%d')}.docx",
             "content": encoded
         }]
     })
@@ -111,30 +139,32 @@ def handle_text(event):
     sender = get_sender_name(event)
 
     if text == "整理QA":
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⏳ 正在分析對話，請稍候約30秒...")
+        )
         result = supabase.table("messages").select("*").order("id").execute()
         messages = result.data
         if not messages:
-            reply = "目前還沒有收集到任何訊息！"
+            line_bot_api.push_message(
+                event.source.group_id,
+                TextSendMessage(text="目前還沒有收集到任何訊息！")
+            )
         else:
             try:
-                send_email_with_docx(messages)
-                supabase.table("messages").delete().neq("id", 0).execute()
-                reply = "✅ Q&A 整理完成！已寄送 Word 檔到您的信箱，請查收。"
+                qa_content = analyze_with_gemini(messages)
+                send_email_with_docx(qa_content)
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text="✅ Q&A 整理完成！已寄送 Word 檔到您的信箱，請查收。")
+                )
             except Exception as e:
-                reply = f"整理失敗：{str(e)}"
-    elif text.endswith("#問題"):
-        content = text.replace("#問題", "").strip()
-        save_message(content, sender, "問題")
-        reply = None
-    elif text.endswith("#回答"):
-        content = text.replace("#回答", "").strip()
-        save_message(content, sender, "回答")
-        reply = None
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text=f"整理失敗：{str(e)}")
+                )
     else:
-        reply = None
-
-    if reply:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        save_message(text, sender)
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
@@ -143,7 +173,7 @@ def handle_image(event):
     content = b"".join(chunk for chunk in message_content.iter_content())
     filename = f"images/{event.message.id}.jpg"
     url = upload_file(content, filename, "image/jpeg")
-    save_message("", sender, "其他", file_url=url)
+    save_message(f"[圖片]", sender, file_url=url, file_type="image")
 
 @handler.add(MessageEvent, message=FileMessage)
 def handle_file(event):
@@ -152,7 +182,7 @@ def handle_file(event):
     content = b"".join(chunk for chunk in message_content.iter_content())
     filename = f"files/{event.message.id}_{event.message.file_name}"
     url = upload_file(content, filename, "application/octet-stream")
-    save_message("", sender, "其他", file_url=url)
+    save_message(f"[檔案：{event.message.file_name}]", sender, file_url=url, file_type="file")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
