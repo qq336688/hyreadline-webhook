@@ -41,9 +41,11 @@ def send_email_with_docx(qa_list):
     part.add_header('Content-Disposition', 'attachment', filename='QA整理.docx')
     msg.attach(part)
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(GMAIL_USER, GMAIL_PASSWORD)
-        server.send_message(msg)
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.ehlo()
+    server.starttls()
+    server.login(GMAIL_USER, GMAIL_PASSWORD)
+    server.send_message(msg)
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
