@@ -2,11 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, smtplib, io
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
+import os, io, resend
 from docx import Document
 
 app = Flask(__name__)
@@ -14,8 +10,7 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
 
-GMAIL_USER = os.environ.get("GMAIL_USER")
-GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
+resend.api_key = os.environ.get("RESEND_API_KEY")
 TO_EMAIL = "qq8298@gmail.com"
 
 messages = []
@@ -28,24 +23,23 @@ def send_email_with_docx(qa_list):
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
+    content = buffer.read()
 
-    msg = MIMEMultipart()
-    msg['From'] = GMAIL_USER
-    msg['To'] = TO_EMAIL
-    msg['Subject'] = 'LINE 群組 Q&A 整理報告'
-    msg.attach(MIMEText('您好，\n\n附件為整理後的 Q&A 文件，請查收。\n\nHyRead客服Bot', 'plain', 'utf-8'))
+    import base64
+    encoded = base64.b64encode(content).decode()
 
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(buffer.read())
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', 'attachment', filename='QA整理.docx')
-    msg.attach(part)
-
-with smtplib.SMTP('smtp.gmail.com', 587) as server:
-    server.ehlo()
-    server.starttls()
-    server.login(GMAIL_USER, GMAIL_PASSWORD)
-    server.send_message(msg)
+    resend.Emails.send({
+        "from": "onboarding@resend.dev",
+        "to": TO_EMAIL,
+        "subject": "LINE 群組 Q&A 整理報告",
+        "html": "<p>您好，附件為整理後的 Q&A 文件，請查收。</p><p>HyRead客服Bot</p>",
+        "attachments": [
+            {
+                "filename": "QA整理.docx",
+                "content": encoded
+            }
+        ]
+    })
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
