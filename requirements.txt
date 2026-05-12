@@ -3,3 +3,4 @@ line-bot-sdk
 gunicorn
 python-docx
 resend
+supabase
