@@ -66,46 +66,39 @@ def upload_file(content, filename, content_type):
 def analyze_messages(title, messages):
     conversation = ""
     for msg in messages:
-        time = msg.get("created_at", "")
+        time_val = msg.get("created_at", "")
         sender = msg.get("sender", "未知")
         text = msg.get("text", "")
         file_url = msg.get("file_url", "")
-        line = f"[{time}] {sender}：{text}"
+        line_str = "[" + time_val + "] " + sender + "：" + text
         if file_url:
-            line += f" 📎{file_url}"
-        conversation += line + "\n"
+            line_str += " 📎" + file_url
+        conversation += line_str + "\n"
 
-    prompt = f"""以下是LINE群組的客服對話記錄（{title}），請整理成Q&A格式。
+    prompt = (
+        "以下是LINE群組的客服對話記錄（" + title + "），請整理成Q&A格式。\n\n"
+        "規則：\n"
+        "1. 自動判斷哪些訊息是問題、哪些是回答\n"
+        "2. 相同或相似的問題合併成一個Q\n"
+        "3. 每個Q後面標明提問者（可能多人）和時間\n"
+        "4. 每個A後面標明回答者（可能多人）和時間\n"
+        "5. 如果有附圖或附檔，附上連結\n"
+        "6. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊，不要忽略，讓使用者自行判斷\n"
+        "7. 請用繁體中文輸出\n\n"
+        "對話記錄：\n"
+        + conversation[:40000] +
+        "\n\n請用以下格式輸出：\n\n"
+        "【" + title + " Q&A整理】\n\n"
+        "Q1：[問題內容]\n"
+        "時間：[時間] 提問者：[姓名]\n\n"
+        "A：[回答內容]\n"
+        "時間：[時間] 回答者：[姓名]\n\n"
+        "---\n\n"
+        "【一般訊息】\n"
+        "[時間] 發話者：訊息內容\n\n"
+        "---\n"
+    )
 
-規則：
-1. 自動判斷哪些訊息是問題、哪些是回答
-2. 相同或相似的問題合併成一個Q
-3. 每個Q後面標明提問者（可能多人）和時間
-4. 每個A後面標明回答者（可能多人）和時間
-5. 如果有附圖或附檔，附上連結
-6. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊，不要忽略，讓使用者自行判斷
-7. 請用繁體中文輸出
-
-對話記錄：
-{conversation[:40000]}
-
-請用以下格式輸出：
-
-【{title} Q&A整理】
-
-Q1：[問題內容]
-時間：[時間] 提問者：[姓名]
-
-A：[回答內容]
-時間：[時間] 回答者：[姓名]
-
----
-
-【一般訊息】
-[時間] 發話者：訊息內容
-
----
-"""
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt
@@ -118,12 +111,33 @@ A：[回答內容]
     }
     return response.text, token_info
 
+def build_token_html(total_tokens):
+    if not total_tokens:
+        return ""
+    status = "在免費範圍內" if total_tokens["total"] < 1000000 else "接近上限"
+    input_t = str(total_tokens["input"])
+    output_t = str(total_tokens["output"])
+    total_t = str(total_tokens["total"])
+    rows = (
+        "<tr><td>輸入 Tokens</td><td>" + input_t + "</td></tr>"
+        "<tr><td>輸出 Tokens</td><td>" + output_t + "</td></tr>"
+        "<tr><td><b>總計 Tokens</b></td><td><b>" + total_t + "</b></td></tr>"
+        "<tr><td>免費額度上限</td><td>1,000,000 tokens/分鐘</td></tr>"
+        "<tr><td>狀態</td><td>" + status + "</td></tr>"
+    )
+    return (
+        "<hr><h3>本次 Token 使用量</h3>"
+        '<table border="1" cellpadding="5" style="border-collapse:collapse">'
+        + rows +
+        "</table>"
+    )
+
 def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
     doc = Document()
-    doc.add_heading('LINE 群組 Q&A 整理報告', 0)
-    doc.add_paragraph(f"整理時間：{datetime.now().strftime('%Y/%m/%d %H:%M')}")
+    doc.add_heading("LINE 群組 Q&A 整理報告", 0)
+    doc.add_paragraph("整理時間：" + datetime.now().strftime("%Y/%m/%d %H:%M"))
     if subject_note:
-        doc.add_paragraph(f"整理範圍：{subject_note}")
+        doc.add_paragraph("整理範圍：" + subject_note)
     doc.add_paragraph("")
 
     for title, content in all_qa_content:
@@ -137,28 +151,16 @@ def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
     buffer.seek(0)
     encoded = base64.b64encode(buffer.read()).decode()
 
-    token_html = ""
-    if total_tokens:
-        status = "✅ 在免費範圍內" if total_tokens['total'] < 1000000 else "⚠️ 接近上限"
-        token_html = f"""
-<hr>
-<h3>📊 本次 Token 使用量</h3>
-<table border="1" cellpadding="5" style="border-collapse:collapse">
-  <tr><td>輸入 Tokens</td><td>{total_tokens['input']:,}</td></tr>
-  <tr><td>輸出 Tokens</td><td>{total_tokens['output']:,}</td></tr>
-  <tr><td><b>總計 Tokens</b></td><td><b>{total_tokens['total']:,}</b></td></tr>
-  <tr><td>免費額度上限</td><td>1,000,000 tokens/分鐘</td></tr>
-  <tr><td>狀態</td><td>{status}</td></tr>
-</table>
-"""
+    token_html = build_token_html(total_tokens)
+    html_body = "<p>您好，附件為整理後的 Q&A 文件（" + subject_note + "），請確認格式與內容是否正確。</p>" + token_html
 
     resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": TO_EMAIL,
-        "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')} [{subject_note}]",
-        "html": f"<p>您好，附件為整理後的 Q&A 文件（{subject_note}），請確認格式與內容是否正確。</p>{token_html}",
+        "subject": "LINE 群組 Q&A 整理報告 " + datetime.now().strftime("%Y/%m/%d") + " [" + subject_note + "]",
+        "html": html_body,
         "attachments": [{
-            "filename": f"QA整理_{subject_note}_{datetime.now().strftime('%Y%m%d')}.docx",
+            "filename": "QA整理_" + subject_note + "_" + datetime.now().strftime("%Y%m%d") + ".docx",
             "content": encoded
         }]
     })
@@ -178,17 +180,16 @@ def handle_text(event):
     text = event.message.text.strip()
     sender = get_sender_name(event)
 
-    # 整理QA 2019 ~ 2026 按年份分析
     if text.startswith("整理QA ") and len(text) == 9:
         year = text.split(" ")[1]
         if year.isdigit() and len(year) == 4:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text=f"⏳ 正在分析 {year} 年對話，需要約3~5分鐘，完成後會寄信通知您確認...")
+                TextSendMessage(text="⏳ 正在分析 " + year + " 年對話，需要約3~5分鐘，完成後會寄信通知您確認...")
             )
             try:
                 result = supabase.table("messages").select("*")\
-                    .like("created_at", f"{year}%")\
+                    .like("created_at", year + "%")\
                     .order("id")\
                     .limit(1000)\
                     .execute()
@@ -196,27 +197,26 @@ def handle_text(event):
                 if not msgs:
                     line_bot_api.push_message(
                         event.source.group_id,
-                        TextSendMessage(text=f"{year} 年沒有找到任何訊息！")
+                        TextSendMessage(text=year + " 年沒有找到任何訊息！")
                     )
                 else:
-                    qa_text, token_info = analyze_messages(f"{year}年", msgs)
+                    qa_text, token_info = analyze_messages(year + "年", msgs)
                     send_email_with_docx(
-                        [(f"{year}年", qa_text)],
-                        f"{year}年資料",
+                        [(year + "年", qa_text)],
+                        year + "年資料",
                         token_info
                     )
                     line_bot_api.push_message(
                         event.source.group_id,
-                        TextSendMessage(text=f"✅ {year} 年整理完成！共分析 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認格式與內容！")
+                        TextSendMessage(text="✅ " + year + " 年整理完成！共分析 " + str(len(msgs)) + " 則訊息，已寄送報告到您的信箱，請確認格式與內容！")
                     )
             except Exception as e:
                 line_bot_api.push_message(
                     event.source.group_id,
-                    TextSendMessage(text=f"整理失敗：{str(e)}")
+                    TextSendMessage(text="整理失敗：" + str(e))
                 )
             return
 
-    # 整理QA 只分析新訊息
     if text == "整理QA":
         line_bot_api.reply_message(
             event.reply_token,
@@ -240,18 +240,18 @@ def handle_text(event):
                 qa_text, token_info = analyze_messages("新增對話", msgs)
                 send_email_with_docx(
                     [("新增對話", qa_text)],
-                    f"新增對話（{last_date}之後）",
+                    "新增對話（" + last_date + "之後）",
                     token_info
                 )
                 set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
                 line_bot_api.push_message(
                     event.source.group_id,
-                    TextSendMessage(text=f"✅ 新增對話整理完成！共 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認！")
+                    TextSendMessage(text="✅ 新增對話整理完成！共 " + str(len(msgs)) + " 則訊息，已寄送報告到您的信箱，請確認！")
                 )
         except Exception as e:
             line_bot_api.push_message(
                 event.source.group_id,
-                TextSendMessage(text=f"整理失敗：{str(e)}")
+                TextSendMessage(text="整理失敗：" + str(e))
             )
         return
 
@@ -261,15 +261,15 @@ def handle_text(event):
 def handle_image(event):
     sender = get_sender_name(event)
     content = b"".join(line_bot_api.get_message_content(event.message.id).iter_content())
-    url = upload_file(content, f"images/{event.message.id}.jpg", "image/jpeg")
+    url = upload_file(content, "images/" + event.message.id + ".jpg", "image/jpeg")
     save_message("[圖片]", sender, file_url=url, file_type="image")
 
 @handler.add(MessageEvent, message=FileMessage)
 def handle_file(event):
     sender = get_sender_name(event)
     content = b"".join(line_bot_api.get_message_content(event.message.id).iter_content())
-    url = upload_file(content, f"files/{event.message.id}_{event.message.file_name}", "application/octet-stream")
-    save_message(f"[檔案：{event.message.file_name}]", sender, file_url=url, file_type="file")
+    url = upload_file(content, "files/" + event.message.id + "_" + event.message.file_name, "application/octet-stream")
+    save_message("[檔案：" + event.message.file_name + "]", sender, file_url=url, file_type="file")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
