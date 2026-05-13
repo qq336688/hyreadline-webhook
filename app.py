@@ -101,9 +101,15 @@ A：[回答內容]
 ---
 """
     response = model.generate_content(prompt)
-    return response.text
+    usage = response.usage_metadata
+    token_info = {
+        "input": getattr(usage, "prompt_token_count", 0),
+        "output": getattr(usage, "candidates_token_count", 0),
+        "total": getattr(usage, "total_token_count", 0)
+    }
+    return response.text, token_info
 
-def send_email_with_docx(all_qa_content, subject_note=""):
+def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
     doc = Document()
     doc.add_heading('LINE 群組 Q&A 整理報告', 0)
     doc.add_paragraph(f"整理時間：{datetime.now().strftime('%Y/%m/%d %H:%M')}")
@@ -122,11 +128,26 @@ def send_email_with_docx(all_qa_content, subject_note=""):
     buffer.seek(0)
     encoded = base64.b64encode(buffer.read()).decode()
 
+    # Token 使用量報告
+    token_html = ""
+    if total_tokens:
+        token_html = f"""
+<hr>
+<h3>📊 本次 Token 使用量</h3>
+<table border="1" cellpadding="5">
+  <tr><td>輸入 Tokens</td><td>{total_tokens['input']:,}</td></tr>
+  <tr><td>輸出 Tokens</td><td>{total_tokens['output']:,}</td></tr>
+  <tr><td><b>總計 Tokens</b></td><td><b>{total_tokens['total']:,}</b></td></tr>
+  <tr><td>免費額度上限</td><td>1,000,000 tokens/分鐘</td></tr>
+  <tr><td>狀態</td><td>{'✅ 在免費範圍內' if total_tokens['total'] < 1000000 else '⚠️ 接近上限'}</td></tr>
+</table>
+"""
+
     resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": TO_EMAIL,
         "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')} {subject_note}",
-        "html": f"<p>您好，附件為整理後的 Q&A 文件（{subject_note}），請確認格式與內容是否正確。</p>",
+        "html": f"<p>您好，附件為整理後的 Q&A 文件（{subject_note}），請確認格式與內容是否正確。</p>{token_html}",
         "attachments": [{
             "filename": f"QA整理_{datetime.now().strftime('%Y%m%d')}.docx",
             "content": encoded
@@ -155,9 +176,9 @@ def handle_text(event):
         )
         try:
             first_run_done = get_setting("first_run_done")
+            total_tokens = {"input": 0, "output": 0, "total": 0}
 
             if first_run_done != "true":
-                # 第一次：分析 2019~2026 所有資料
                 years = ["2019","2020","2021","2022","2023","2024","2025","2026"]
                 all_qa = []
                 for year in years:
@@ -166,12 +187,13 @@ def handle_text(event):
                         .order("id").execute()
                     msgs = result.data
                     if msgs:
-                        qa = analyze_messages(f"{year}年", msgs)
-                        all_qa.append((f"{year}年", qa))
+                        qa_text, token_info = analyze_messages(f"{year}年", msgs)
+                        all_qa.append((f"{year}年", qa_text))
+                        total_tokens["input"] += token_info["input"]
+                        total_tokens["output"] += token_info["output"]
+                        total_tokens["total"] += token_info["total"]
 
-                send_email_with_docx(all_qa, "2019~2026全部資料（請確認格式與內容）")
-
-                # 更新設定
+                send_email_with_docx(all_qa, "2019~2026全部資料（請確認格式與內容）", total_tokens)
                 set_setting("first_run_done", "true")
                 set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
 
@@ -180,7 +202,6 @@ def handle_text(event):
                     TextSendMessage(text="✅ 第一次整理完成！已寄送 2019~2026 完整 Q&A 報告到您的信箱，請確認格式與內容是否正確。\n\n確認無誤後，之後輸入「整理QA」將只整理新增對話！")
                 )
             else:
-                # 之後：只分析上次整理後新增的訊息
                 last_date = get_setting("last_analyzed_date")
                 result = supabase.table("messages").select("*")\
                     .like("created_at", "2026%")\
@@ -194,8 +215,9 @@ def handle_text(event):
                         TextSendMessage(text="目前沒有新的對話需要整理！")
                     )
                 else:
-                    qa = analyze_messages(f"新增對話（{last_date} 之後）", msgs)
-                    send_email_with_docx([(f"新增對話", qa)], f"{last_date}之後新增對話")
+                    qa_text, token_info = analyze_messages(f"新增對話（{last_date} 之後）", msgs)
+                    total_tokens = token_info
+                    send_email_with_docx([(f"新增對話", qa_text)], f"{last_date}之後新增對話", total_tokens)
                     set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
                     line_bot_api.push_message(
                         event.source.group_id,
