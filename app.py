@@ -3,7 +3,8 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (MessageEvent, TextMessage, TextSendMessage,
                              ImageMessage, FileMessage)
-import os, io, resend, google.generativeai as genai
+import os, io, resend
+from google import genai
 from docx import Document
 from supabase import create_client
 import base64
@@ -22,8 +23,7 @@ supabase = create_client(
     os.environ.get("SUPABASE_KEY")
 )
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 def get_sender_name(event):
     try:
@@ -100,7 +100,10 @@ A：[回答內容]
 
 ---
 """
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
     usage = response.usage_metadata
     token_info = {
         "input": getattr(usage, "prompt_token_count", 0),
@@ -128,7 +131,6 @@ def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
     buffer.seek(0)
     encoded = base64.b64encode(buffer.read()).decode()
 
-    # Token 使用量報告
     token_html = ""
     if total_tokens:
         token_html = f"""
