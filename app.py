@@ -23,10 +23,7 @@ supabase = create_client(
     os.environ.get("SUPABASE_KEY")
 )
 
-client = genai.Client(
-    api_key=os.environ.get("GEMINI_API_KEY"),
-    http_options={"timeout": 300}
-)
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 def get_sender_name(event):
     try:
