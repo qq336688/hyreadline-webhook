@@ -75,35 +75,36 @@ def analyze_messages(title, messages):
             line += f" 📎{file_url}"
         conversation += line + "\n"
 
-    prompt = f"""以下是LINE群組的客服對話記錄（{title}），請整理成以下兩個區塊：
+    prompt = f"""以下是LINE群組的客服對話記錄（{title}），請整理成Q&A格式。
 
-【區塊一：Q&A整理】
 規則：
 1. 自動判斷哪些訊息是問題、哪些是回答
 2. 相同或相似的問題合併成一個Q
 3. 每個Q後面標明提問者（可能多人）和時間
 4. 每個A後面標明回答者（可能多人）和時間
 5. 如果有附圖或附檔，附上連結
-6. 請用繁體中文輸出
+6. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊，不要忽略
+7. 請用繁體中文輸出
 
-格式：
+對話記錄：
+{conversation[:40000]}
+
+請用以下格式輸出：
+
+【{title} Q&A整理】
+
 Q1：[問題內容]
 時間：[時間] 提問者：[姓名]
-（如有附件）📎 [連結]
 
 A：[回答內容]
 時間：[時間] 回答者：[姓名]
-（如有附件）📎 [連結]
 
 ---
 
-【區塊二：一般訊息】
-規則：
-1. 沒有明確問答關係的訊息全部列出，不要忽略
-2. 格式：[時間] 發話者：訊息內容
+【一般訊息】
+[時間] 發話者：訊息內容
 
-對話記錄：
-{conversation[:50000]}
+---
 """
     response = client.models.generate_content(
         model="gemini-2.5-flash",
@@ -138,22 +139,24 @@ def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
 
     token_html = ""
     if total_tokens:
+        status = "✅ 在免費範圍內" if total_tokens['total'] < 1000000 else "⚠️ 接近上限"
         token_html = f"""
 <hr>
 <h3>📊 本次 Token 使用量</h3>
-<table border="1" cellpadding="5">
+<table border="1" cellpadding="5" style="border-collapse:collapse">
   <tr><td>輸入 Tokens</td><td>{total_tokens['input']:,}</td></tr>
   <tr><td>輸出 Tokens</td><td>{total_tokens['output']:,}</td></tr>
   <tr><td><b>總計 Tokens</b></td><td><b>{total_tokens['total']:,}</b></td></tr>
-  <tr><td>免費額度狀態</td><td>{'✅ 在免費範圍內' if total_tokens['total'] < 1000000 else '⚠️ 接近上限'}</td></tr>
+  <tr><td>免費額度上限</td><td>1,000,000 tokens/分鐘</td></tr>
+  <tr><td>狀態</td><td>{status}</td></tr>
 </table>
 """
 
     resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": TO_EMAIL,
-        "subject": f"LINE 群組 Q&A 整理報告 {subject_note} {datetime.now().strftime('%Y/%m/%d')}",
-        "html": f"<p>您好，附件為整理後的報告（{subject_note}），請確認格式與內容是否正確。</p>{token_html}",
+        "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')} [{subject_note}]",
+        "html": f"<p>您好，附件為整理後的 Q&A 文件（{subject_note}），請確認格式與內容是否正確。</p>{token_html}",
         "attachments": [{
             "filename": f"QA整理_{subject_note}_{datetime.now().strftime('%Y%m%d')}.docx",
             "content": encoded
@@ -175,65 +178,84 @@ def handle_text(event):
     text = event.message.text.strip()
     sender = get_sender_name(event)
 
-    if text.startswith("整理QA"):
-        parts = text.split()
-        year = parts[1] if len(parts) > 1 else None
-
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"⏳ 正在分析{'「' + year + '年」' if year else '新增'}對話，需要約3~5分鐘，完成後會寄信通知您...")
-        )
-        try:
-            total_tokens = {"input": 0, "output": 0, "total": 0}
-
-            if year:
-                # 指定年份分析
+    # 整理QA 2019 ~ 2026 按年份分析
+    if text.startswith("整理QA ") and len(text) == 7:
+        year = text.split(" ")[1]
+        if year.isdigit() and len(year) == 4:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"⏳ 正在分析 {year} 年對話，需要約3~5分鐘，完成後會寄信通知您確認...")
+            )
+            try:
                 result = supabase.table("messages").select("*")\
                     .like("created_at", f"{year}%")\
-                    .order("id").execute()
+                    .order("id")\
+                    .limit(1000)\
+                    .execute()
                 msgs = result.data
                 if not msgs:
                     line_bot_api.push_message(
                         event.source.group_id,
-                        TextSendMessage(text=f"找不到 {year} 年的對話記錄！")
+                        TextSendMessage(text=f"{year} 年沒有找到任何訊息！")
                     )
-                    return
-                qa_text, token_info = analyze_messages(f"{year}年", msgs)
-                total_tokens = token_info
-                send_email_with_docx([(f"{year}年", qa_text)], f"{year}年對話", total_tokens)
+                else:
+                    qa_text, token_info = analyze_messages(f"{year}年", msgs)
+                    send_email_with_docx(
+                        [(f"{year}年", qa_text)],
+                        f"{year}年資料",
+                        token_info
+                    )
+                    line_bot_api.push_message(
+                        event.source.group_id,
+                        TextSendMessage(text=f"✅ {year} 年整理完成！共分析 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認格式與內容！")
+                    )
+            except Exception as e:
                 line_bot_api.push_message(
                     event.source.group_id,
-                    TextSendMessage(text=f"✅ {year}年整理完成！共 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認！")
+                    TextSendMessage(text=f"整理失敗：{str(e)}")
+                )
+            return
+
+    # 整理QA 只分析新訊息
+    if text == "整理QA":
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⏳ 正在分析新增對話，完成後會寄信通知您確認...")
+        )
+        try:
+            last_date = get_setting("last_analyzed_date") or ""
+            result = supabase.table("messages").select("*")\
+                .gt("created_at", last_date)\
+                .order("id")\
+                .limit(1000)\
+                .execute()
+            msgs = result.data
+
+            if not msgs:
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text="目前沒有新的對話需要整理！")
                 )
             else:
-                # 日常使用：只分析新增訊息
-                last_date = get_setting("last_analyzed_date") or ""
-                result = supabase.table("messages").select("*")\
-                    .gt("created_at", last_date)\
-                    .order("id").execute()
-                msgs = result.data
-                if not msgs:
-                    line_bot_api.push_message(
-                        event.source.group_id,
-                        TextSendMessage(text="目前沒有新的對話需要整理！")
-                    )
-                    return
-                qa_text, token_info = analyze_messages(f"新增對話（{last_date} 之後）", msgs)
-                total_tokens = token_info
-                send_email_with_docx([(f"新增對話", qa_text)], f"新增對話", total_tokens)
+                qa_text, token_info = analyze_messages("新增對話", msgs)
+                send_email_with_docx(
+                    [("新增對話", qa_text)],
+                    f"新增對話（{last_date}之後）",
+                    token_info
+                )
                 set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
                 line_bot_api.push_message(
                     event.source.group_id,
                     TextSendMessage(text=f"✅ 新增對話整理完成！共 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認！")
                 )
-
         except Exception as e:
             line_bot_api.push_message(
                 event.source.group_id,
                 TextSendMessage(text=f"整理失敗：{str(e)}")
             )
-    else:
-        save_message(text, sender)
+        return
+
+    save_message(text, sender)
 
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
