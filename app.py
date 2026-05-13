@@ -23,7 +23,10 @@ supabase = create_client(
     os.environ.get("SUPABASE_KEY")
 )
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+client = genai.Client(
+    api_key=os.environ.get("GEMINI_API_KEY"),
+    http_options={"timeout": 300}
+)
 
 def get_sender_name(event):
     try:
@@ -86,7 +89,7 @@ def analyze_messages(title, messages):
         "6. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊，不要忽略，讓使用者自行判斷\n"
         "7. 請用繁體中文輸出\n\n"
         "對話記錄：\n"
-        + conversation[:40000] +
+        + conversation[:30000] +
         "\n\n請用以下格式輸出：\n\n"
         "【" + title + " Q&A整理】\n\n"
         "Q1：[問題內容]\n"
@@ -191,7 +194,7 @@ def handle_text(event):
                 result = supabase.table("messages").select("*")\
                     .like("created_at", year + "%")\
                     .order("id")\
-                    .limit(1000)\
+                    .limit(200)\
                     .execute()
                 msgs = result.data
                 if not msgs:
@@ -203,7 +206,7 @@ def handle_text(event):
                     qa_text, token_info = analyze_messages(year + "年", msgs)
                     send_email_with_docx(
                         [(year + "年", qa_text)],
-                        year + "年資料",
+                        year + "年資料（前200筆）",
                         token_info
                     )
                     line_bot_api.push_message(
@@ -227,7 +230,7 @@ def handle_text(event):
             result = supabase.table("messages").select("*")\
                 .gt("created_at", last_date)\
                 .order("id")\
-                .limit(1000)\
+                .limit(200)\
                 .execute()
             msgs = result.data
 
