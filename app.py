@@ -144,3 +144,132 @@ def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
 <hr>
 <h3>📊 本次 Token 使用量</h3>
 <table border="1" cellpadding="5" style="border-collapse:collapse">
+  <tr><td>輸入 Tokens</td><td>{total_tokens['input']:,}</td></tr>
+  <tr><td>輸出 Tokens</td><td>{total_tokens['output']:,}</td></tr>
+  <tr><td><b>總計 Tokens</b></td><td><b>{total_tokens['total']:,}</b></td></tr>
+  <tr><td>免費額度上限</td><td>1,000,000 tokens/分鐘</td></tr>
+  <tr><td>狀態</td><td>{status}</td></tr>
+</table>
+"""
+
+    resend.Emails.send({
+        "from": "onboarding@resend.dev",
+        "to": TO_EMAIL,
+        "subject": f"LINE 群組 Q&A 整理報告 {datetime.now().strftime('%Y/%m/%d')} [{subject_note}]",
+        "html": f"<p>您好，附件為整理後的 Q&A 文件（{subject_note}），請確認格式與內容是否正確。</p>{token_html}",
+        "attachments": [{
+            "filename": f"QA整理_{subject_note}_{datetime.now().strftime('%Y%m%d')}.docx",
+            "content": encoded
+        }]
+    })
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    signature = request.headers["X-Line-Signature"]
+    body = request.get_data(as_text=True)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return "OK"
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_text(event):
+    text = event.message.text.strip()
+    sender = get_sender_name(event)
+
+    # 整理QA 2019 ~ 2026 按年份分析
+    if text.startswith("整理QA ") and len(text) == 9:
+        year = text.split(" ")[1]
+        if year.isdigit() and len(year) == 4:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"⏳ 正在分析 {year} 年對話，需要約3~5分鐘，完成後會寄信通知您確認...")
+            )
+            try:
+                result = supabase.table("messages").select("*")\
+                    .like("created_at", f"{year}%")\
+                    .order("id")\
+                    .limit(1000)\
+                    .execute()
+                msgs = result.data
+                if not msgs:
+                    line_bot_api.push_message(
+                        event.source.group_id,
+                        TextSendMessage(text=f"{year} 年沒有找到任何訊息！")
+                    )
+                else:
+                    qa_text, token_info = analyze_messages(f"{year}年", msgs)
+                    send_email_with_docx(
+                        [(f"{year}年", qa_text)],
+                        f"{year}年資料",
+                        token_info
+                    )
+                    line_bot_api.push_message(
+                        event.source.group_id,
+                        TextSendMessage(text=f"✅ {year} 年整理完成！共分析 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認格式與內容！")
+                    )
+            except Exception as e:
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text=f"整理失敗：{str(e)}")
+                )
+            return
+
+    # 整理QA 只分析新訊息
+    if text == "整理QA":
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⏳ 正在分析新增對話，完成後會寄信通知您確認...")
+        )
+        try:
+            last_date = get_setting("last_analyzed_date") or ""
+            result = supabase.table("messages").select("*")\
+                .gt("created_at", last_date)\
+                .order("id")\
+                .limit(1000)\
+                .execute()
+            msgs = result.data
+
+            if not msgs:
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text="目前沒有新的對話需要整理！")
+                )
+            else:
+                qa_text, token_info = analyze_messages("新增對話", msgs)
+                send_email_with_docx(
+                    [("新增對話", qa_text)],
+                    f"新增對話（{last_date}之後）",
+                    token_info
+                )
+                set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
+                line_bot_api.push_message(
+                    event.source.group_id,
+                    TextSendMessage(text=f"✅ 新增對話整理完成！共 {len(msgs)} 則訊息，已寄送報告到您的信箱，請確認！")
+                )
+        except Exception as e:
+            line_bot_api.push_message(
+                event.source.group_id,
+                TextSendMessage(text=f"整理失敗：{str(e)}")
+            )
+        return
+
+    save_message(text, sender)
+
+@handler.add(MessageEvent, message=ImageMessage)
+def handle_image(event):
+    sender = get_sender_name(event)
+    content = b"".join(line_bot_api.get_message_content(event.message.id).iter_content())
+    url = upload_file(content, f"images/{event.message.id}.jpg", "image/jpeg")
+    save_message("[圖片]", sender, file_url=url, file_type="image")
+
+@handler.add(MessageEvent, message=FileMessage)
+def handle_file(event):
+    sender = get_sender_name(event)
+    content = b"".join(line_bot_api.get_message_content(event.message.id).iter_content())
+    url = upload_file(content, f"files/{event.message.id}_{event.message.file_name}", "application/octet-stream")
+    save_message(f"[檔案：{event.message.file_name}]", sender, file_url=url, file_type="file")
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
