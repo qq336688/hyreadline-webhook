@@ -4,4 +4,4 @@ gunicorn
 python-docx
 resend
 supabase
-google-generativeai
+google-genai
