@@ -510,15 +510,16 @@ function loadCategories(){
         +'<td>'+esc(row.analyzed_at)+'</td>'
         +'<td>'+row.total_msgs+'</td>'
         +'<td><span class="cat-pill">'+esc(aiCat)+'</span></td>'
-        +'<td id="cat-'+row.id+'">'+(userCat?'<span class="cat-edit">'+esc(userCat)+'</span>':'<span style="color:#ccc">未設定</span>')+'</td>'
-        +'<td><button class="btn-outline" onclick="startEdit('+row.id+',\''+escQ(userCat||aiCat)+'\')">修改</button></td>'
+        +'<td id="cat-'+row.id+'" data-cur="'+escAttr(userCat||aiCat)+'">'+(userCat?'<span class="cat-edit">'+esc(userCat)+'</span>':'<span style="color:#ccc">未設定</span>')+'</td>'
+        +'<td><button class="btn-outline" onclick="startEdit('+row.id+')">修改</button></td>'
         +'</tr>';
     });
     document.getElementById('catTable').innerHTML=html||'<tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">尚無資料</td></tr>';
   });
 }
-function startEdit(id,cur){
+function startEdit(id){
   var cell=document.getElementById('cat-'+id);
+  var cur=cell.getAttribute('data-cur')||'';
   cell.innerHTML='<div class="edit-inline"><input type="text" id="ei-'+id+'" value="'+escAttr(cur)+'"><button class="btn-sm" onclick="saveEdit('+id+')">儲存</button><button class="btn-sm btn-cancel" onclick="loadCategories()">取消</button></div>';
   document.getElementById('ei-'+id).focus();
 }
