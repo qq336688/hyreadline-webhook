@@ -22,7 +22,7 @@ supabase = create_client(
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # ──────────────────────────────────────────────
-# ① Keep-alive 端點（供 UptimeRobot 每 14 分鐘 ping）
+# Keep-alive 端點（供 UptimeRobot 每 14 分鐘 ping）
 # ──────────────────────────────────────────────
 @app.route("/ping", methods=["GET"])
 def ping():
@@ -60,12 +60,6 @@ def save_message(text, sender, file_url="", file_type="none"):
         "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
     }).execute()
 
-# ──────────────────────────────────────────────
-# ② Token 使用量寫入 Supabase
-# 需先在 Supabase 建立 token_logs 資料表：
-#   id (int8, PK), analyzed_at (text), title (text),
-#   input_tokens (int8), output_tokens (int8), total_tokens (int8)
-# ──────────────────────────────────────────────
 def save_token_log(title, token_info):
     try:
         supabase.table("token_logs").insert({
@@ -75,6 +69,7 @@ def save_token_log(title, token_info):
             "output_tokens": token_info.get("output", 0),
             "total_tokens": token_info.get("total", 0)
         }).execute()
+        print("Token log 寫入成功")
     except Exception as e:
         print("Token log 寫入失敗：", e)
 
@@ -207,7 +202,7 @@ def handle_text(event):
     text = event.message.text.strip()
     sender = get_sender_name(event)
 
-    # 整理QA 年份（例如：整理QA 2024）
+    # 整理QA 年份（例如：整理QA 2019）
     if text.startswith("整理QA ") and len(text) == 9:
         year = text.split(" ")[1]
         if year.isdigit() and len(year) == 4:
@@ -216,33 +211,43 @@ def handle_text(event):
                 TextSendMessage(text="⏳ 正在分析 " + year + " 年對話，需要約3~5分鐘，完成後會寄信通知您確認...")
             )
             try:
+                print("=== 開始處理 整理QA", year, "===")
+                print("開始查詢 Supabase...")
                 result = supabase.table("messages").select("*")\
                     .like("created_at", year + "%")\
                     .order("id")\
                     .limit(200)\
                     .execute()
                 msgs = result.data
+                print("查詢完成，筆數：", len(msgs))
+
                 if not msgs:
                     line_bot_api.push_message(
                         event.source.group_id,
                         TextSendMessage(text=year + " 年沒有找到任何訊息！")
                     )
                 else:
+                    print("開始呼叫 Gemini API...")
                     qa_text, token_info = analyze_messages(year + "年", msgs)
+                    print("Gemini 完成！Token 使用：", token_info)
 
-                    # ② 寫入 token 記錄到 Supabase
+                    print("寫入 token_logs...")
                     save_token_log(year + "年", token_info)
 
+                    print("開始寄信...")
                     send_email_with_docx(
                         [(year + "年", qa_text)],
                         year + "年資料（前200筆）",
                         token_info
                     )
+                    print("寄信完成！")
+
                     line_bot_api.push_message(
                         event.source.group_id,
                         TextSendMessage(text="✅ " + year + " 年整理完成！共分析 " + str(len(msgs)) + " 則訊息，已寄送報告到您的信箱，請確認格式與內容！")
                     )
             except Exception as e:
+                print("發生錯誤：", str(e))
                 line_bot_api.push_message(
                     event.source.group_id,
                     TextSendMessage(text="整理失敗：" + str(e))
@@ -256,35 +261,46 @@ def handle_text(event):
             TextSendMessage(text="⏳ 正在分析新增對話，完成後會寄信通知您確認...")
         )
         try:
+            print("=== 開始處理 整理QA（新增）===")
             last_date = get_setting("last_analyzed_date") or ""
+            print("上次整理時間：", last_date)
+
             result = supabase.table("messages").select("*")\
                 .gt("created_at", last_date)\
                 .order("id")\
                 .limit(200)\
                 .execute()
             msgs = result.data
+            print("查詢完成，筆數：", len(msgs))
+
             if not msgs:
                 line_bot_api.push_message(
                     event.source.group_id,
                     TextSendMessage(text="目前沒有新的對話需要整理！")
                 )
             else:
+                print("開始呼叫 Gemini API...")
                 qa_text, token_info = analyze_messages("新增對話", msgs)
+                print("Gemini 完成！Token 使用：", token_info)
 
-                # ② 寫入 token 記錄到 Supabase
+                print("寫入 token_logs...")
                 save_token_log("新增對話", token_info)
 
+                print("開始寄信...")
                 send_email_with_docx(
                     [("新增對話", qa_text)],
                     "新增對話（" + last_date + "之後）",
                     token_info
                 )
+                print("寄信完成！")
+
                 set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
                 line_bot_api.push_message(
                     event.source.group_id,
                     TextSendMessage(text="✅ 新增對話整理完成！共 " + str(len(msgs)) + " 則訊息，已寄送報告到您的信箱，請確認！")
                 )
         except Exception as e:
+            print("發生錯誤：", str(e))
             line_bot_api.push_message(
                 event.source.group_id,
                 TextSendMessage(text="整理失敗：" + str(e))
