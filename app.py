@@ -440,7 +440,7 @@ tr:hover td{background:#fafafa}
 function showTab(name){
   document.querySelectorAll('.tab').forEach(function(t,i){t.classList.remove('active')});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
-  var tabs=['filter','category','stats','token'];
+  var tabs=['filter','category','stats','token','users'];
   document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
   if(name==='filter')loadWords();
