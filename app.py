@@ -216,10 +216,10 @@ def handle_text(event):
                 result = supabase.table("messages").select("*")\
                     .like("created_at", year + "%")\
                     .order("id")\
-                    .limit(200)\
+                    .limit(50)\
                     .execute()
                 msgs = result.data
-                print("查詢完成，筆數：", len(msgs))
+                print("查詢完成，筆數：", len(msgs), flush=True)
 
                 if not msgs:
                     line_bot_api.push_message(
@@ -268,10 +268,10 @@ def handle_text(event):
             result = supabase.table("messages").select("*")\
                 .gt("created_at", last_date)\
                 .order("id")\
-                .limit(200)\
+                .limit(50)\
                 .execute()
             msgs = result.data
-            print("查詢完成，筆數：", len(msgs))
+            print("查詢完成，筆數：", len(msgs), flush=True)
 
             if not msgs:
                 line_bot_api.push_message(
