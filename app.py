@@ -331,11 +331,11 @@ tr:hover td{background:#fafafa}
   <a href="/admin/logout" style="margin-left:6px">登出</a>
 </div>
 <div class="tabs">
-  <div class="tab active" onclick="showTab('filter')">🚫 過濾詞句</div>
-  <div class="tab" onclick="showTab('category')">🏷 分類管理</div>
-  <div class="tab" onclick="showTab('stats')">📊 分析總覽</div>
-  <div class="tab" onclick="showTab('token')">⚡ Token 用量</div>
-  <div class="tab" onclick="showTab('users')">👤 帳號管理</div>
+  <div class="tab active" onclick="showTab(this,'filter')">🚫 過濾詞句</div>
+  <div class="tab" onclick="showTab(this,'category')">🏷 分類管理</div>
+  <div class="tab" onclick="showTab(this,'stats')">📊 分析總覽</div>
+  <div class="tab" onclick="showTab(this,'token')">⚡ Token 用量</div>
+  <div class="tab" onclick="showTab(this,'users')">👤 帳號管理</div>
 </div>
 
 <!-- 過濾詞句 -->
@@ -437,11 +437,10 @@ tr:hover td{background:#fafafa}
 </div>
 
 <script>
-function showTab(name){
-  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.remove('active')});
+function showTab(el,name){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
-  var tabs=['filter','category','stats','token','users'];
-  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  el.classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
   if(name==='filter')loadWords();
   if(name==='category')loadCategories();
