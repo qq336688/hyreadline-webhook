@@ -11,20 +11,26 @@ import base64
 from datetime import datetime
 
 app = Flask(__name__)
-
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
-
 resend.api_key = os.environ.get("RESEND_API_KEY")
 TO_EMAIL = "qq8298@gmail.com"
-
 supabase = create_client(
     os.environ.get("SUPABASE_URL"),
     os.environ.get("SUPABASE_KEY")
 )
-
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
+# ──────────────────────────────────────────────
+# ① Keep-alive 端點（供 UptimeRobot 每 14 分鐘 ping）
+# ──────────────────────────────────────────────
+@app.route("/ping", methods=["GET"])
+def ping():
+    return "pong", 200
+
+# ──────────────────────────────────────────────
+# 基本工具函式
+# ──────────────────────────────────────────────
 def get_sender_name(event):
     try:
         profile = line_bot_api.get_group_member_profile(
@@ -53,6 +59,24 @@ def save_message(text, sender, file_url="", file_type="none"):
         "file_type": file_type,
         "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
     }).execute()
+
+# ──────────────────────────────────────────────
+# ② Token 使用量寫入 Supabase
+# 需先在 Supabase 建立 token_logs 資料表：
+#   id (int8, PK), analyzed_at (text), title (text),
+#   input_tokens (int8), output_tokens (int8), total_tokens (int8)
+# ──────────────────────────────────────────────
+def save_token_log(title, token_info):
+    try:
+        supabase.table("token_logs").insert({
+            "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+            "title": title,
+            "input_tokens": token_info.get("input", 0),
+            "output_tokens": token_info.get("output", 0),
+            "total_tokens": token_info.get("total", 0)
+        }).execute()
+    except Exception as e:
+        print("Token log 寫入失敗：", e)
 
 def upload_file(content, filename, content_type):
     try:
@@ -103,6 +127,7 @@ def analyze_messages(title, messages):
         model="gemini-2.5-flash",
         contents=prompt
     )
+
     usage = response.usage_metadata
     token_info = {
         "input": getattr(usage, "prompt_token_count", 0),
@@ -139,7 +164,6 @@ def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
     if subject_note:
         doc.add_paragraph("整理範圍：" + subject_note)
     doc.add_paragraph("")
-
     for title, content in all_qa_content:
         doc.add_heading(title, level=1)
         for line in content.split("\n"):
@@ -165,6 +189,9 @@ def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
         }]
     })
 
+# ──────────────────────────────────────────────
+# Webhook 主入口
+# ──────────────────────────────────────────────
 @app.route("/webhook", methods=["POST"])
 def webhook():
     signature = request.headers["X-Line-Signature"]
@@ -180,6 +207,7 @@ def handle_text(event):
     text = event.message.text.strip()
     sender = get_sender_name(event)
 
+    # 整理QA 年份（例如：整理QA 2024）
     if text.startswith("整理QA ") and len(text) == 9:
         year = text.split(" ")[1]
         if year.isdigit() and len(year) == 4:
@@ -201,6 +229,10 @@ def handle_text(event):
                     )
                 else:
                     qa_text, token_info = analyze_messages(year + "年", msgs)
+
+                    # ② 寫入 token 記錄到 Supabase
+                    save_token_log(year + "年", token_info)
+
                     send_email_with_docx(
                         [(year + "年", qa_text)],
                         year + "年資料（前200筆）",
@@ -217,6 +249,7 @@ def handle_text(event):
                 )
             return
 
+    # 整理QA（只分析新增訊息）
     if text == "整理QA":
         line_bot_api.reply_message(
             event.reply_token,
@@ -230,7 +263,6 @@ def handle_text(event):
                 .limit(200)\
                 .execute()
             msgs = result.data
-
             if not msgs:
                 line_bot_api.push_message(
                     event.source.group_id,
@@ -238,6 +270,10 @@ def handle_text(event):
                 )
             else:
                 qa_text, token_info = analyze_messages("新增對話", msgs)
+
+                # ② 寫入 token 記錄到 Supabase
+                save_token_log("新增對話", token_info)
+
                 send_email_with_docx(
                     [("新增對話", qa_text)],
                     "新增對話（" + last_date + "之後）",
