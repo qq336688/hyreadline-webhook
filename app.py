@@ -1,62 +1,868 @@
-from flask import Flask, request, abort
+from flask import Flask, request, abort, jsonify, session, redirect
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (MessageEvent, TextMessage, TextSendMessage,
                              ImageMessage, FileMessage)
-import os, io, resend
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+import os, re, threading
 from google import genai
-from docx import Document
 from supabase import create_client
-import base64
 from datetime import datetime
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "hyread-admin-2026-secret")
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
-resend.api_key = os.environ.get("RESEND_API_KEY")
-TO_EMAIL = "qq8298@gmail.com"
-supabase = create_client(
-    os.environ.get("SUPABASE_URL"),
-    os.environ.get("SUPABASE_KEY")
-)
+supabase = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+WEB_URL = "https://hyreadline-webhook.onrender.com/qa"
 
 # ──────────────────────────────────────────────
-# Keep-alive 端點（供 UptimeRobot 每 14 分鐘 ping）
+# 登入驗證
 # ──────────────────────────────────────────────
-@app.route("/ping", methods=["GET"])
+def require_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("admin_logged_in"):
+            return redirect("/admin/login")
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    error = ""
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "")
+        result = supabase.table("admin_users").select("*")\
+            .eq("username", username).eq("is_active", True).execute()
+        if result.data and check_password_hash(result.data[0]["password_hash"], password):
+            session["admin_logged_in"] = True
+            session["admin_username"] = username
+            return redirect("/admin")
+        error = "帳號或密碼錯誤"
+    # 若無任何管理者帳號，導向初始設定
+    try:
+        count = supabase.table("admin_users").select("id", count="exact").execute()
+        if (count.count or 0) == 0:
+            return redirect("/admin/setup")
+    except:
+        pass
+    return '''<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HyRead Q&A 管理登入</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:#f5f7fa;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.box{background:#fff;border-radius:12px;border:.5px solid #e0e0e0;padding:32px 36px;width:340px}
+.logo{text-align:center;font-size:28px;margin-bottom:8px}
+h2{text-align:center;font-size:16px;font-weight:500;color:#333;margin-bottom:24px}
+label{font-size:12px;color:#777;display:block;margin-bottom:4px}
+input{width:100%;padding:9px 12px;border:.5px solid #ddd;border-radius:6px;font-size:13px;margin-bottom:14px;font-family:inherit;outline:none}
+input:focus{border-color:#00b900}
+.btn{width:100%;padding:10px;background:#00b900;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:500}
+.err{color:#e53935;font-size:12px;text-align:center;margin-bottom:12px}
+</style></head><body>
+<div class="box">
+  <div class="logo">📋</div>
+  <h2>HyRead Q&A 管理介面</h2>
+  ''' + (f'<div class="err">{error}</div>' if error else '') + '''
+  <form method="POST">
+    <label>帳號</label>
+    <input type="text" name="username" placeholder="請輸入帳號" autofocus>
+    <label>密碼</label>
+    <input type="password" name="password" placeholder="請輸入密碼">
+    <button class="btn" type="submit">登入</button>
+  </form>
+</div></body></html>'''
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.clear()
+    return redirect("/admin/login")
+
+@app.route("/admin/setup", methods=["GET", "POST"])
+def admin_setup():
+    # 只有無任何管理者時才可使用
+    try:
+        count = supabase.table("admin_users").select("id", count="exact").execute()
+        if (count.count or 0) > 0:
+            return redirect("/admin/login")
+    except:
+        pass
+    msg = ""
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "")
+        if username and len(password) >= 6:
+            hashed = generate_password_hash(password)
+            supabase.table("admin_users").insert({
+                "username": username,
+                "password_hash": hashed,
+                "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "is_active": True
+            }).execute()
+            return redirect("/admin/login")
+        msg = "帳號不可為空，密碼至少 6 個字元"
+    return '''<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>初始設定</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:#f5f7fa;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.box{background:#fff;border-radius:12px;border:.5px solid #e0e0e0;padding:32px 36px;width:340px}
+.logo{text-align:center;font-size:28px;margin-bottom:8px}
+h2{text-align:center;font-size:15px;font-weight:500;color:#333;margin-bottom:6px}
+p{text-align:center;font-size:12px;color:#aaa;margin-bottom:20px}
+label{font-size:12px;color:#777;display:block;margin-bottom:4px}
+input{width:100%;padding:9px 12px;border:.5px solid #ddd;border-radius:6px;font-size:13px;margin-bottom:14px;font-family:inherit;outline:none}
+input:focus{border-color:#00b900}
+.btn{width:100%;padding:10px;background:#00b900;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer}
+.err{color:#e53935;font-size:12px;text-align:center;margin-bottom:12px}
+</style></head><body>
+<div class="box">
+  <div class="logo">🔐</div>
+  <h2>建立第一個管理者帳號</h2>
+  <p>此頁面只在尚無任何管理者時出現</p>
+  ''' + (f'<div class="err">{msg}</div>' if msg else '') + '''
+  <form method="POST">
+    <label>帳號</label>
+    <input type="text" name="username" placeholder="設定帳號" autofocus>
+    <label>密碼（至少 6 個字元）</label>
+    <input type="password" name="password" placeholder="設定密碼">
+    <button class="btn" type="submit">建立管理者</button>
+  </form>
+</div></body></html>'''
+
+# ──────────────────────────────────────────────
+# Keep-alive
+# ──────────────────────────────────────────────
+@app.route("/ping")
 def ping():
     return "pong", 200
+
+# ──────────────────────────────────────────────
+# Q&A 查詢主頁
+# ──────────────────────────────────────────────
+@app.route("/qa")
+def qa_page():
+    return '''<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HyRead Q&A 查詢</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;height:100vh;display:flex;flex-direction:column}
+.topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;flex-shrink:0}
+.topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
+.topbar a+a{margin-left:6px}
+.body{display:flex;flex:1;overflow:hidden}
+aside{width:160px;background:#f9f9f9;border-right:1px solid #eee;padding:10px 8px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.sb-lbl{font-size:10px;color:#aaa;padding:6px 4px 3px;letter-spacing:.5px}
+.yr-btn{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:.5px solid transparent;color:#666;text-align:left}
+.yr-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
+.yr-btn:hover:not(.active){background:#fff}
+main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.ai-bar{padding:11px 16px;border-bottom:1px solid #eee;background:#fff}
+.ai-row{display:flex;gap:8px}
+.ai-input{flex:1;padding:9px 14px;border:1.5px solid #00b900;border-radius:20px;font-size:13px;font-family:inherit;outline:none}
+.ai-btn{width:38px;height:38px;background:#00b900;border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:16px}
+.scope{font-size:10px;color:#aaa;margin-top:5px;padding-left:4px}
+.chat{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+.msg-u{align-self:flex-end;max-width:70%}
+.bbl-u{background:#00b900;color:#fff;padding:10px 15px;border-radius:18px 18px 4px 18px;font-size:13px;line-height:1.6}
+.msg-ai{align-self:flex-start;max-width:88%}
+.ai-lbl{font-size:11px;color:#aaa;margin-bottom:5px}
+.bbl-ai{background:#f5f5f5;border:.5px solid #e0e0e0;padding:13px 16px;border-radius:4px 18px 18px 18px;font-size:13px;line-height:1.85}
+.suggest{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:8px;padding:20px}
+.suggest p{font-size:13px;color:#bbb}
+.sug{width:100%;max-width:400px;padding:9px 14px;border:.5px solid #ddd;border-radius:8px;font-size:12px;background:#fff;color:#555;cursor:pointer;text-align:left}
+.sug:hover{border-color:#00b900;color:#1b5e20}
+.loading{color:#aaa;font-size:13px;padding:8px 0}
+</style></head><body>
+<div class="topbar">📋 HyRead LINE Q&A 查詢系統
+  <a href="/admin">⚙ 管理介面</a>
+</div>
+<div class="body">
+  <aside>
+    <div class="sb-lbl">查詢範圍</div>
+    <div class="yr-btn active" onclick="setYr(this,'')">全部年份</div>
+    <div class="yr-btn" onclick="setYr(this,'2019')">2019 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2020')">2020 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2021')">2021 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2022')">2022 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2023')">2023 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2024')">2024 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2025')">2025 年</div>
+    <div class="yr-btn" onclick="setYr(this,'2026')">2026 年</div>
+    <div class="yr-btn" onclick="setYr(this,'日常')">日常新增</div>
+  </aside>
+  <main>
+    <div class="ai-bar">
+      <div class="ai-row">
+        <input class="ai-input" id="q" placeholder="直接輸入問題，AI 幫你找答案..." onkeydown="if(event.key==='Enter')ask()">
+        <button class="ai-btn" onclick="ask()">➤</button>
+      </div>
+      <div class="scope" id="scope">✦ 目前查詢範圍：全部年份（2019～2026）</div>
+    </div>
+    <div class="chat" id="chat">
+      <div class="suggest">
+        <p>試著問這些問題</p>
+        <button class="sug" onclick="fill('歷年最常見的問題是什麼？')">💡 歷年最常見的問題是什麼？</button>
+        <button class="sug" onclick="fill('關於保固的問題有哪些？')">💡 關於保固的問題有哪些？</button>
+        <button class="sug" onclick="fill('APP 無法登入怎麼處理？')">💡 APP 無法登入怎麼處理？</button>
+        <button class="sug" onclick="fill('2019年有哪些召回相關問題？')">💡 2019年有哪些召回相關問題？</button>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+var yr='';
+function setYr(el,y){yr=y;document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});el.classList.add('active');document.getElementById('scope').textContent='✦ 目前查詢範圍：'+(y||'全部年份（2019～2026）')}
+function fill(t){document.getElementById('q').value=t;ask()}
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+function ask(){
+  var q=document.getElementById('q').value.trim();if(!q)return;
+  var c=document.getElementById('chat');
+  c.innerHTML='<div class="msg-u"><div class="bbl-u">'+esc(q)+'</div></div><div class="msg-ai"><div class="ai-lbl">✨ AI 助理</div><div class="bbl-ai loading">⏳ 分析中，請稍候...</div></div>';
+  fetch('/qa/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,year:yr})})
+  .then(function(r){return r.json()}).then(function(d){
+    c.innerHTML='<div class="msg-u"><div class="bbl-u">'+esc(q)+'</div></div><div class="msg-ai"><div class="ai-lbl">✨ AI 助理</div><div class="bbl-ai">'+esc(d.answer)+'</div></div>';
+  }).catch(function(){c.innerHTML='<div class="msg-u"><div class="bbl-u">'+esc(q)+'</div></div><div class="msg-ai"><div class="bbl-ai" style="color:#e53935">⚠️ 查詢失敗，請稍後再試</div></div>'})
+}
+</script></body></html>'''
+
+# ──────────────────────────────────────────────
+# Q&A API
+# ──────────────────────────────────────────────
+@app.route("/qa/api/batches")
+def qa_batches():
+    result = supabase.table("qa_results").select("id,year,batch_num,title,analyzed_at,total_msgs,categories,user_category,category_confirmed").order("id").execute()
+    return jsonify(result.data)
+
+@app.route("/qa/api/ask", methods=["POST"])
+def qa_ask():
+    data = request.get_json()
+    question = (data.get("question") or "").strip()
+    year = data.get("year", "")
+    if not question:
+        return jsonify({"answer": "請輸入問題", "sources": []})
+    query = supabase.table("qa_results").select("title,content,year")
+    if year:
+        query = query.eq("year", year)
+    batches = query.order("id").execute().data
+    if not batches:
+        return jsonify({"answer": "目前尚無資料，請先在 LINE 執行整理QA 指令。", "sources": []})
+    combined = ""
+    for b in batches:
+        combined += "=== " + b["title"] + " ===\n" + (b.get("content") or "") + "\n\n"
+    prompt = ("以下是HyRead LINE群組的歷史Q&A整理資料：\n\n" + combined[:40000] +
+              "\n\n請根據以上資料，用繁體中文回答：\n" + question +
+              "\n\n規則：1.直接回答，條列重點 2.整合多筆相關資料 3.找不到請說明 4.繁體中文")
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    return jsonify({"answer": response.text, "sources": []})
+
+# ──────────────────────────────────────────────
+# 管理介面主頁
+# ──────────────────────────────────────────────
+@app.route("/admin")
+@require_admin
+def admin_page():
+    return '''<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HyRead Q&A 管理介面</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:#f5f7fa;min-height:100vh}
+.topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
+.topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #e0e0e0;padding:0 18px}
+.tab{padding:12px 20px;font-size:13px;color:#777;cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:#00b900;border-bottom-color:#00b900;font-weight:500}
+.panel{display:none;padding:20px}
+.panel.active{display:block}
+.card{background:#fff;border-radius:10px;border:.5px solid #e0e0e0;padding:16px 18px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:500;color:#333;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.add-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+input[type=text]{padding:8px 12px;border:.5px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;outline:none}
+input[type=text]:focus{border-color:#00b900}
+select{padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit}
+.btn-green{padding:8px 16px;background:#00b900;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer}
+.btn-outline{padding:6px 12px;background:transparent;color:#777;border:.5px solid #ddd;border-radius:6px;font-size:11px;cursor:pointer}
+.btn-outline:hover{border-color:#e53935;color:#e53935}
+.tags{display:flex;flex-wrap:wrap;gap:7px}
+.tag{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:99px;font-size:12px}
+.tag-phrase{background:#e3f2fd;color:#1565c0}
+.tag-sender{background:#fce4ec;color:#880e4f}
+.tag-keyword{background:#fff3e0;color:#e65100}
+.tag-system{background:#f5f5f5;color:#aaa}
+.tag-del{cursor:pointer;opacity:.6;font-size:14px}
+.tag-del:hover{opacity:1}
+.sec-lbl{font-size:11px;color:#aaa;margin:12px 0 6px;letter-spacing:.3px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;border-bottom:1px solid #eee;color:#777;font-weight:500}
+td{padding:9px 10px;border-bottom:.5px solid #f5f5f5;color:#333}
+tr:hover td{background:#fafafa}
+.cat-disp{display:flex;align-items:center;gap:6px}
+.cat-pill{font-size:11px;padding:3px 9px;border-radius:99px;background:#e8f5e9;color:#2e7d32}
+.cat-edit{font-size:11px;padding:3px 9px;border-radius:99px;background:#fff8e1;color:#f57f17}
+.edit-inline{display:flex;gap:6px;align-items:center}
+.edit-inline input{font-size:12px;padding:5px 8px;width:160px}
+.btn-sm{padding:5px 10px;font-size:11px;border:none;border-radius:5px;cursor:pointer;background:#00b900;color:#fff}
+.btn-cancel{background:#f5f5f5;color:#777}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.stat-card{background:#f9f9f9;border-radius:8px;padding:14px;text-align:center}
+.stat-num{font-size:24px;font-weight:500;color:#00b900}
+.stat-lbl{font-size:11px;color:#aaa;margin-top:4px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.bar-name{font-size:12px;color:#555;width:60px;text-align:right;flex-shrink:0}
+.bar-wrap{flex:1;background:#f0f0f0;border-radius:99px;height:8px;overflow:hidden}
+.bar-fill{height:100%;background:#00b900;border-radius:99px}
+.bar-val{font-size:11px;color:#aaa;width:30px}
+.msg{font-size:12px;color:#00b900;margin-top:8px}
+.msg.err{color:#e53935}
+</style></head><body>
+<div class="topbar">⚙ HyRead Q&A 管理介面
+  <a href="/qa">← 回查詢頁面</a>
+  <a href="/admin/logout" style="margin-left:6px">登出</a>
+</div>
+<div class="tabs">
+  <div class="tab active" onclick="showTab('filter')">🚫 過濾詞句</div>
+  <div class="tab" onclick="showTab('category')">🏷 分類管理</div>
+  <div class="tab" onclick="showTab('stats')">📊 分析總覽</div>
+  <div class="tab" onclick="showTab('token')">⚡ Token 用量</div>
+  <div class="tab" onclick="showTab('users')">👤 帳號管理</div>
+</div>
+
+<!-- 過濾詞句 -->
+<div class="panel active" id="tab-filter">
+  <div class="card">
+    <div class="card-title">➕ 新增過濾詞句</div>
+    <div class="add-row">
+      <input type="text" id="newWord" placeholder="輸入要過濾的詞句..." style="flex:1;min-width:200px">
+      <select id="newType">
+        <option value="phrase">短句（完整符合）</option>
+        <option value="sender">發話者名稱</option>
+        <option value="keyword">關鍵字（包含即過濾）</option>
+      </select>
+      <input type="text" id="newNote" placeholder="備註（選填）" style="width:130px">
+      <button class="btn-green" onclick="addWord()">新增</button>
+    </div>
+    <div id="addMsg"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 目前過濾清單</div>
+    <div id="filterList"><div style="color:#aaa;font-size:13px">載入中...</div></div>
+  </div>
+</div>
+
+<!-- 分類管理 -->
+<div class="panel" id="tab-category">
+  <div class="card">
+    <div class="card-title">🏷 批次分類管理
+      <select id="catYrFilter" onchange="loadCategories()" style="margin-left:auto;font-size:12px">
+        <option value="">全部年份</option>
+        <option>2019</option><option>2020</option><option>2021</option>
+        <option>2022</option><option>2023</option><option>2024</option>
+        <option>2025</option><option>2026</option><option value="日常">日常</option>
+      </select>
+    </div>
+    <table>
+      <thead><tr><th>批次</th><th>時間</th><th>訊息數</th><th>Gemini 建議分類</th><th>你的分類</th><th>操作</th></tr></thead>
+      <tbody id="catTable"><tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 分析總覽 -->
+<div class="panel" id="tab-stats">
+  <div class="stat-grid" id="statCards"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card">
+      <div class="card-title">📅 各年度資料量</div>
+      <div id="yearChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏷 問題分類分布</div>
+      <div id="catChart"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 帳號管理 -->
+<div class="panel" id="tab-users">
+  <div class="card">
+    <div class="card-title">➕ 新增管理者帳號</div>
+    <div class="add-row">
+      <input type="text" id="newUsr" placeholder="帳號" style="width:150px">
+      <input type="password" id="newPwd" placeholder="密碼（至少6個字元）" style="width:200px">
+      <button class="btn-green" onclick="addUser()">新增</button>
+    </div>
+    <div id="userMsg"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">👥 管理者清單</div>
+    <table>
+      <thead><tr><th>帳號</th><th>建立時間</th><th>狀態</th><th>操作</th></tr></thead>
+      <tbody id="userTable"><tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-title">🔑 修改密碼</div>
+    <div class="add-row">
+      <select id="chgUsr" style="width:140px"></select>
+      <input type="password" id="chgPwd" placeholder="新密碼（至少6個字元）" style="width:200px">
+      <button class="btn-green" onclick="changePassword()">修改密碼</button>
+    </div>
+    <div id="pwdMsg"></div>
+  </div>
+</div>
+
+<!-- Token 用量 -->
+<div class="panel" id="tab-token">
+  <div id="tokenWarn"></div>
+  <div class="stat-grid" id="tokenCards"></div>
+  <div class="card">
+    <div class="card-title">📅 近14天每日用量</div>
+    <div id="tokenChart"><div style="color:#aaa;font-size:13px">載入中...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 近期批次記錄</div>
+    <div id="tokenRecent" style="overflow-x:auto"><div style="color:#aaa;font-size:13px">載入中...</div></div>
+  </div>
+</div>
+
+<script>
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.remove('active')});
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
+  var tabs=['filter','category','stats','token'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='filter')loadWords();
+  if(name==='category')loadCategories();
+  if(name==='stats')loadStats();
+  if(name==='token')loadTokens();
+  if(name==='users')loadUsers();
+}
+
+/* ── 過濾詞句 ── */
+function loadWords(){
+  fetch('/admin/api/filter_words').then(function(r){return r.json()}).then(function(data){
+    var phrases=data.filter(function(d){return d.type==='phrase'});
+    var senders=data.filter(function(d){return d.type==='sender'});
+    var keywords=data.filter(function(d){return d.type==='keyword'});
+    var sys=data.filter(function(d){return d.is_system});
+    var user=data.filter(function(d){return !d.is_system});
+    var html='';
+    if(user.length){
+      html+='<div class="sec-lbl">你新增的（可刪除）</div><div class="tags">';
+      user.forEach(function(w){
+        var cls=w.type==='sender'?'tag-sender':w.type==='keyword'?'tag-keyword':'tag-phrase';
+        html+='<div class="tag '+cls+'">'+esc(w.word)+'<span class="tag-del" onclick="delWord('+w.id+')">×</span></div>';
+      });
+      html+='</div>';
+    }
+    if(sys.length){
+      html+='<div class="sec-lbl">系統預設（不可刪除）</div><div class="tags">';
+      sys.forEach(function(w){html+='<div class="tag tag-system">'+esc(w.word)+'</div>';});
+      html+='</div>';
+    }
+    document.getElementById('filterList').innerHTML=html||'<div style="color:#aaa;font-size:13px">尚無過濾詞句</div>';
+  });
+}
+function addWord(){
+  var w=document.getElementById('newWord').value.trim();
+  if(!w){showMsg('addMsg','請輸入詞句',true);return}
+  fetch('/admin/api/filter_words',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({word:w,type:document.getElementById('newType').value,note:document.getElementById('newNote').value})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.error){showMsg('addMsg',d.error,true)}else{
+      document.getElementById('newWord').value='';
+      document.getElementById('newNote').value='';
+      showMsg('addMsg','新增成功！',false);
+      loadWords();
+    }
+  });
+}
+function delWord(id){
+  if(!confirm('確定刪除這個過濾詞句？'))return;
+  fetch('/admin/api/filter_words/'+id,{method:'DELETE'}).then(function(r){return r.json()}).then(function(d){
+    if(d.error)alert(d.error);else loadWords();
+  });
+}
+
+/* ── 分類管理 ── */
+var editId=null;
+function loadCategories(){
+  var yr=document.getElementById('catYrFilter').value;
+  fetch('/admin/api/categories'+(yr?'?year='+yr:'')).then(function(r){return r.json()}).then(function(data){
+    var html='';
+    data.forEach(function(row){
+      var aiCat=row.categories||'—';
+      var userCat=row.user_category||'';
+      var confirmed=row.category_confirmed;
+      html+='<tr id="row-'+row.id+'">'
+        +'<td>'+esc(row.title)+'</td>'
+        +'<td>'+esc(row.analyzed_at)+'</td>'
+        +'<td>'+row.total_msgs+'</td>'
+        +'<td><span class="cat-pill">'+esc(aiCat)+'</span></td>'
+        +'<td id="cat-'+row.id+'">'+(userCat?'<span class="cat-edit">'+esc(userCat)+'</span>':'<span style="color:#ccc">未設定</span>')+'</td>'
+        +'<td><button class="btn-outline" onclick="startEdit('+row.id+',\''+escQ(userCat||aiCat)+'\')">修改</button></td>'
+        +'</tr>';
+    });
+    document.getElementById('catTable').innerHTML=html||'<tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">尚無資料</td></tr>';
+  });
+}
+function startEdit(id,cur){
+  var cell=document.getElementById('cat-'+id);
+  cell.innerHTML='<div class="edit-inline"><input type="text" id="ei-'+id+'" value="'+escAttr(cur)+'"><button class="btn-sm" onclick="saveEdit('+id+')">儲存</button><button class="btn-sm btn-cancel" onclick="loadCategories()">取消</button></div>';
+  document.getElementById('ei-'+id).focus();
+}
+function saveEdit(id){
+  var val=document.getElementById('ei-'+id).value.trim();
+  fetch('/admin/api/categories/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({user_category:val,confirmed:true})})
+  .then(function(){loadCategories()});
+}
+
+/* ── 分析總覽 ── */
+function loadStats(){
+  fetch('/admin/api/stats').then(function(r){return r.json()}).then(function(d){
+    var totalBatches=0,totalMsgs=0;
+    Object.values(d.year_stats).forEach(function(v){totalBatches+=v.batches;totalMsgs+=v.msgs});
+    document.getElementById('statCards').innerHTML=
+      '<div class="stat-card"><div class="stat-num">'+totalBatches+'</div><div class="stat-lbl">已整理批次</div></div>'
+      +'<div class="stat-card"><div class="stat-num">'+totalMsgs+'</div><div class="stat-lbl">訊息總數</div></div>'
+      +'<div class="stat-card"><div class="stat-num">'+Object.keys(d.year_stats).length+'</div><div class="stat-lbl">涵蓋年份</div></div>'
+      +'<div class="stat-card"><div class="stat-num">'+Object.keys(d.category_stats).length+'</div><div class="stat-lbl">問題類別數</div></div>';
+
+    /* 年度長條圖 */
+    var maxM=Math.max.apply(null,Object.values(d.year_stats).map(function(v){return v.msgs}))||1;
+    var yHtml='';
+    Object.keys(d.year_stats).sort().forEach(function(yr){
+      var v=d.year_stats[yr];
+      yHtml+='<div class="bar-row"><div class="bar-name">'+yr+'</div><div class="bar-wrap"><div class="bar-fill" style="width:'+(v.msgs/maxM*100)+'%"></div></div><div class="bar-val">'+v.msgs+'</div></div>';
+    });
+    document.getElementById('yearChart').innerHTML=yHtml||'<div style="color:#aaa;font-size:13px">無資料</div>';
+
+    /* 分類長條圖 */
+    var cats=Object.entries(d.category_stats).sort(function(a,b){return b[1]-a[1]}).slice(0,10);
+    var maxC=(cats[0]||[0,1])[1]||1;
+    var cHtml='';
+    cats.forEach(function(c){
+      cHtml+='<div class="bar-row"><div class="bar-name">'+esc(c[0])+'</div><div class="bar-wrap"><div class="bar-fill" style="width:'+(c[1]/maxC*100)+'%;background:#1565c0"></div></div><div class="bar-val">'+c[1]+'</div></div>';
+    });
+    document.getElementById('catChart').innerHTML=cHtml||'<div style="color:#aaa;font-size:13px">無分類資料</div>';
+  });
+}
+
+/* ── 帳號管理 ── */
+function loadUsers(){
+  fetch('/admin/api/users').then(function(r){return r.json()}).then(function(data){
+    var html='';
+    var selHtml='';
+    data.forEach(function(u){
+      html+='<tr><td>'+esc(u.username)+'</td><td>'+esc(u.created_at||'')+'</td>'
+        +'<td>'+(u.is_active?'<span style="color:#2e7d32">啟用</span>':'<span style="color:#aaa">停用</span>')+'</td>'
+        +'<td><button class="btn-outline" onclick="toggleUser('+u.id+','+(!u.is_active)+')">'+(u.is_active?'停用':'啟用')+'</button>'
+        +' <button class="btn-outline" style="color:#e53935;border-color:#e53935" onclick="delUser('+u.id+')">刪除</button></td></tr>';
+      selHtml+='<option value="'+u.id+'">'+esc(u.username)+'</option>';
+    });
+    document.getElementById('userTable').innerHTML=html||'<tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">無帳號</td></tr>';
+    document.getElementById('chgUsr').innerHTML=selHtml;
+  });
+}
+function addUser(){
+  var u=document.getElementById('newUsr').value.trim();
+  var p=document.getElementById('newPwd').value;
+  if(!u||p.length<6){showMsg('userMsg','帳號不可為空，密碼至少6個字元',true);return}
+  fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u,password:p})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.error){showMsg('userMsg',d.error,true)}
+    else{document.getElementById('newUsr').value='';document.getElementById('newPwd').value='';showMsg('userMsg','新增成功！',false);loadUsers()}
+  });
+}
+function delUser(id){
+  if(!confirm('確定刪除此帳號？'))return;
+  fetch('/admin/api/users/'+id,{method:'DELETE'}).then(function(r){return r.json()}).then(function(d){
+    if(d.error)alert(d.error);else loadUsers();
+  });
+}
+function toggleUser(id,active){
+  fetch('/admin/api/users/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({is_active:active})}).then(function(){loadUsers()});
+}
+function changePassword(){
+  var id=document.getElementById('chgUsr').value;
+  var p=document.getElementById('chgPwd').value;
+  if(!id||p.length<6){showMsg('pwdMsg','請選擇帳號，密碼至少6個字元',true);return}
+  fetch('/admin/api/users/'+id+'/password',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({password:p})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.error){showMsg('pwdMsg',d.error,true)}
+    else{document.getElementById('chgPwd').value='';showMsg('pwdMsg','密碼修改成功！',false)}
+  });
+}
+
+/* ── Token 用量 ── */
+function loadTokens(){
+  fetch('/admin/api/token_stats').then(function(r){return r.json()}).then(function(d){
+    var pct=d.today_pct;
+    var barColor=pct>=80?'#e53935':pct>=60?'#f57f17':'#00b900';
+    document.getElementById('tokenCards').innerHTML=
+      '<div class="stat-card"><div class="stat-num" style="color:'+barColor+'">'+d.today_total.toLocaleString()+'</div><div class="stat-lbl">今日累積 tokens</div></div>'
+      +'<div class="stat-card"><div class="stat-num">'+d.all_total.toLocaleString()+'</div><div class="stat-lbl">歷史總計 tokens</div></div>'
+      +'<div class="stat-card"><div class="stat-num" style="color:'+barColor+'">'+pct+'%</div><div class="stat-lbl">今日使用率（上限 1M）</div></div>'
+      +'<div class="stat-card"><div class="stat-num">'+((d.limit-d.today_total)).toLocaleString()+'</div><div class="stat-lbl">今日剩餘額度</div></div>';
+
+    /* 每日長條圖 */
+    var days=Object.keys(d.daily).sort().slice(-14);
+    var maxT=Math.max.apply(null,days.map(function(k){return d.daily[k].total}))||1;
+    var dHtml='';
+    days.forEach(function(day){
+      var v=d.daily[day];
+      var pct2=Math.round(v.total/1000000*100);
+      var c2=pct2>=80?'#e53935':pct2>=60?'#f57f17':'#00b900';
+      dHtml+='<div class="bar-row"><div class="bar-name" style="width:80px;font-size:10px">'+day.slice(5)+'</div>'
+        +'<div class="bar-wrap"><div class="bar-fill" style="width:'+(v.total/maxT*100)+'%;background:'+c2+'"></div></div>'
+        +'<div class="bar-val" style="width:70px;font-size:10px">'+v.total.toLocaleString()+'</div></div>';
+    });
+    document.getElementById('tokenChart').innerHTML=dHtml||'<div style="color:#aaa;font-size:13px">無資料</div>';
+
+    /* 近期記錄 */
+    var rHtml='<table><thead><tr><th>時間</th><th>批次</th><th>輸入</th><th>輸出</th><th>總計</th></tr></thead><tbody>';
+    (d.recent||[]).forEach(function(r){
+      rHtml+='<tr><td>'+esc(r.analyzed_at||'')+'</td><td>'+esc(r.title||'')+'</td>'
+        +'<td>'+((r.input_tokens||0)).toLocaleString()+'</td>'
+        +'<td>'+((r.output_tokens||0)).toLocaleString()+'</td>'
+        +'<td><b>'+((r.total_tokens||0)).toLocaleString()+'</b></td></tr>';
+    });
+    rHtml+='</tbody></table>';
+    document.getElementById('tokenRecent').innerHTML=rHtml;
+
+    /* 警告提示 */
+    if(d.today_total>=d.warning_threshold){
+      document.getElementById('tokenWarn').innerHTML='<div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:12px 16px;color:#c62828;font-size:13px;margin-bottom:12px">⚠️ 今日 token 用量已超過 80% 上限（'+d.today_total.toLocaleString()+' / 1,000,000），系統將自動暫停分析。</div>';
+    } else {
+      document.getElementById('tokenWarn').innerHTML='';
+    }
+  });
+}
+
+/* ── 工具 ── */
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escQ(t){return(t||'').replace(/\'/g,'\\\'').replace(/"/g,'&quot;')}
+function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
+function showMsg(id,msg,isErr){var el=document.getElementById(id);el.className='msg'+(isErr?' err':'');el.textContent=msg;setTimeout(function(){el.textContent=''},3000)}
+
+/* 預設載入 */
+loadWords();
+</script></body></html>'''
+
+# ──────────────────────────────────────────────
+# 管理 API — 帳號管理
+# ──────────────────────────────────────────────
+@app.route("/admin/api/users", methods=["GET"])
+@require_admin
+def get_users():
+    result = supabase.table("admin_users").select("id,username,created_at,is_active").order("id").execute()
+    return jsonify(result.data)
+
+@app.route("/admin/api/users", methods=["POST"])
+@require_admin
+def add_user():
+    data = request.get_json()
+    username = (data.get("username") or "").strip()
+    password = data.get("password", "")
+    if not username or len(password) < 6:
+        return jsonify({"error": "帳號不可為空，密碼至少6個字元"}), 400
+    try:
+        supabase.table("admin_users").insert({
+            "username": username,
+            "password_hash": generate_password_hash(password),
+            "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+            "is_active": True
+        }).execute()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": "帳號已存在或發生錯誤：" + str(e)}), 400
+
+@app.route("/admin/api/users/<int:user_id>", methods=["DELETE"])
+@require_admin
+def delete_user(user_id):
+    # 不可刪除自己
+    me = supabase.table("admin_users").select("username").eq("id", user_id).execute()
+    if me.data and me.data[0]["username"] == session.get("admin_username"):
+        return jsonify({"error": "不可刪除自己的帳號"}), 403
+    supabase.table("admin_users").delete().eq("id", user_id).execute()
+    return jsonify({"success": True})
+
+@app.route("/admin/api/users/<int:user_id>", methods=["PATCH"])
+@require_admin
+def toggle_user(user_id):
+    data = request.get_json()
+    supabase.table("admin_users").update({"is_active": data.get("is_active", True)}).eq("id", user_id).execute()
+    return jsonify({"success": True})
+
+@app.route("/admin/api/users/<int:user_id>/password", methods=["POST"])
+@require_admin
+def change_password(user_id):
+    data = request.get_json()
+    password = data.get("password", "")
+    if len(password) < 6:
+        return jsonify({"error": "密碼至少6個字元"}), 400
+    supabase.table("admin_users").update({
+        "password_hash": generate_password_hash(password)
+    }).eq("id", user_id).execute()
+    return jsonify({"success": True})
+
+# ──────────────────────────────────────────────
+# 管理 API — 過濾詞句
+# ──────────────────────────────────────────────
+@app.route("/admin/api/filter_words", methods=["GET"])
+@require_admin
+def get_filter_words():
+    result = supabase.table("filter_words").select("*").order("id").execute()
+    return jsonify(result.data)
+
+@app.route("/admin/api/filter_words", methods=["POST"])
+@require_admin
+def add_filter_word():
+    data = request.get_json()
+    word = (data.get("word") or "").strip()
+    if not word:
+        return jsonify({"error": "詞句不可為空"}), 400
+    supabase.table("filter_words").insert({
+        "word": word,
+        "type": data.get("type", "phrase"),
+        "is_system": False,
+        "note": data.get("note", ""),
+        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+    }).execute()
+    return jsonify({"success": True})
+
+@app.route("/admin/api/filter_words/<int:word_id>", methods=["DELETE"])
+@require_admin
+def delete_filter_word(word_id):
+    existing = supabase.table("filter_words").select("is_system").eq("id", word_id).execute()
+    if existing.data and existing.data[0].get("is_system"):
+        return jsonify({"error": "系統預設詞句不可刪除"}), 403
+    supabase.table("filter_words").delete().eq("id", word_id).execute()
+    return jsonify({"success": True})
+
+# ──────────────────────────────────────────────
+# 管理 API — 分類管理
+# ──────────────────────────────────────────────
+@app.route("/admin/api/categories", methods=["GET"])
+@require_admin
+def get_categories():
+    year = request.args.get("year", "")
+    query = supabase.table("qa_results").select(
+        "id,year,batch_num,title,categories,user_category,category_confirmed,analyzed_at,total_msgs")
+    if year:
+        query = query.eq("year", year)
+    result = query.order("id").execute()
+    return jsonify(result.data)
+
+@app.route("/admin/api/categories/<int:result_id>", methods=["PATCH"])
+@require_admin
+def update_category(result_id):
+    data = request.get_json()
+    supabase.table("qa_results").update({
+        "user_category": data.get("user_category", ""),
+        "category_confirmed": data.get("confirmed", True)
+    }).eq("id", result_id).execute()
+    return jsonify({"success": True})
+
+# ──────────────────────────────────────────────
+# 管理 API — 分析總覽
+# ──────────────────────────────────────────────
+@app.route("/admin/api/stats", methods=["GET"])
+@require_admin
+def get_stats():
+    result = supabase.table("qa_results").select("year,categories,user_category,total_msgs").execute()
+    year_stats, cat_stats = {}, {}
+    for row in result.data:
+        yr = row.get("year") or "未知"
+        if yr not in year_stats:
+            year_stats[yr] = {"batches": 0, "msgs": 0}
+        year_stats[yr]["batches"] += 1
+        year_stats[yr]["msgs"] += row.get("total_msgs") or 0
+        cats_str = row.get("user_category") or row.get("categories") or ""
+        for c in re.split(r"[、,，]", cats_str):
+            c = c.strip()
+            if c:
+                cat_stats[c] = cat_stats.get(c, 0) + 1
+    return jsonify({"year_stats": year_stats, "category_stats": cat_stats})
+
+# ──────────────────────────────────────────────
+# 管理 API — Token 用量統計
+# ──────────────────────────────────────────────
+@app.route("/admin/api/token_stats")
+@require_admin
+def get_token_stats():
+    result = supabase.table("token_logs").select("*").order("id", desc=False).execute()
+    rows = result.data
+    today = datetime.now().strftime("%Y/%m/%d")
+
+    today_total = sum((r.get("total_tokens") or 0) for r in rows
+                      if (r.get("analyzed_at") or "").startswith(today))
+    all_total   = sum((r.get("total_tokens") or 0) for r in rows)
+
+    # 每日彙整
+    daily = {}
+    for r in rows:
+        day = (r.get("analyzed_at") or "")[:10]
+        if not day:
+            continue
+        if day not in daily:
+            daily[day] = {"input": 0, "output": 0, "total": 0, "batches": 0}
+        daily[day]["input"]   += r.get("input_tokens",  0) or 0
+        daily[day]["output"]  += r.get("output_tokens", 0) or 0
+        daily[day]["total"]   += r.get("total_tokens",  0) or 0
+        daily[day]["batches"] += 1
+
+    return jsonify({
+        "today_total":        today_total,
+        "all_total":          all_total,
+        "today_pct":          round(today_total / 1000000 * 100, 1),
+        "warning_threshold":  800000,
+        "limit":              1000000,
+        "daily":              daily,
+        "recent":             list(reversed(rows))[:30]
+    })
 
 # ──────────────────────────────────────────────
 # 基本工具函式
 # ──────────────────────────────────────────────
 def get_sender_name(event):
     try:
-        profile = line_bot_api.get_group_member_profile(
-            event.source.group_id,
-            event.source.user_id
-        )
+        profile = line_bot_api.get_group_member_profile(event.source.group_id, event.source.user_id)
         return profile.display_name
     except:
         return "未知用戶"
 
 def get_setting(key):
     result = supabase.table("settings").select("value").eq("key", key).execute()
-    if result.data:
-        return result.data[0]["value"]
-    return None
+    return result.data[0]["value"] if result.data else None
 
 def set_setting(key, value):
-    supabase.table("settings").update({"value": value}).eq("key", key).execute()
+    existing = supabase.table("settings").select("value").eq("key", key).execute()
+    if existing.data:
+        supabase.table("settings").update({"value": value}).eq("key", key).execute()
+    else:
+        supabase.table("settings").insert({"key": key, "value": value}).execute()
 
 def save_message(text, sender, file_url="", file_type="none"):
     supabase.table("messages").insert({
-        "text": text,
-        "sender": sender,
-        "type": "message",
-        "file_url": file_url,
-        "file_type": file_type,
+        "text": text, "sender": sender, "type": "message",
+        "file_url": file_url, "file_type": file_type,
         "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
     }).execute()
 
@@ -69,33 +875,106 @@ def save_token_log(title, token_info):
             "output_tokens": token_info.get("output", 0),
             "total_tokens": token_info.get("total", 0)
         }).execute()
-        print("Token log 寫入成功")
     except Exception as e:
-        print("Token log 寫入失敗：", e)
+        print("Token log 失敗：", e, flush=True)
+
+def get_today_tokens():
+    """查詢今日累積 token 使用量"""
+    try:
+        today = datetime.now().strftime("%Y/%m/%d")
+        result = supabase.table("token_logs").select("total_tokens")\
+            .like("analyzed_at", today + "%").execute()
+        return sum((r.get("total_tokens") or 0) for r in result.data)
+    except:
+        return 0
+
+def save_qa_result(year, batch_num, title, content, start_row, end_row, total_msgs, categories=""):
+    try:
+        supabase.table("qa_results").insert({
+            "year": year, "batch_num": batch_num, "title": title,
+            "content": content, "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+            "start_row": start_row, "end_row": end_row,
+            "total_msgs": total_msgs, "categories": categories
+        }).execute()
+        print("QA 儲存成功", flush=True)
+    except Exception as e:
+        print("QA 儲存失敗：", e, flush=True)
 
 def upload_file(content, filename, content_type):
     try:
-        supabase.storage.from_("line-files").upload(
-            filename, content, {"content-type": content_type}
-        )
+        supabase.storage.from_("line-files").upload(filename, content, {"content-type": content_type})
         return supabase.storage.from_("line-files").get_public_url(filename)
     except:
         return ""
 
+# ──────────────────────────────────────────────
+# 訊息過濾
+# ──────────────────────────────────────────────
+EMOJI_RE = re.compile(
+    "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF"
+    "\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251"
+    "\U0001F926-\U0001F937\U00010000-\U0010FFFF♀-♂☀-⭕‍⏏⏩⌚️〰]+", re.UNICODE)
+
+HARD_PHRASES = {
+    "好","好的","好喔","好!","好！","ok","OK","Ok","OK!","OK！",
+    "嗯","嗯嗯","喔","喔喔","謝","謝謝","感謝","謝謝你","謝謝您",
+    "收到","了解","知道了","知道","沒問題","哈","哈哈","哈哈哈","👍","🙏",
+    "是","是的","對","對的","1","2","3",
+}
+HARD_SYSTEM = ["加入了聊天","已加入群組","已離開群組","撤回了一則訊息",
+               "joined the group","left the group","已將您移除"]
+HARD_BOT_SENDERS = {"HyRead客服","HyRead Bot","bot"}
+HARD_BOT_PREFIXES = ("⏳ ","✅ ","🎉 ","📊 ","⚠️ ","整理失敗","目前沒有")
+
+def get_db_filters():
+    """從 Supabase 讀取使用者自訂過濾詞"""
+    try:
+        rows = supabase.table("filter_words").select("word,type,is_system").execute().data
+        phrases, senders, keywords = set(), set(), []
+        for r in rows:
+            t = r.get("type","phrase")
+            if t == "phrase":   phrases.add(r["word"])
+            elif t == "sender": senders.add(r["word"])
+            elif t == "keyword": keywords.append(r["word"])
+        return phrases, senders, keywords
+    except:
+        return set(), set(), []
+
+def should_skip(msg, db_phrases=None, db_senders=None, db_keywords=None):
+    text   = (msg.get("text")   or "").strip()
+    sender = (msg.get("sender") or "").strip()
+    if not text: return True
+    if sender in HARD_BOT_SENDERS: return True
+    if db_senders and sender in db_senders: return True
+    if any(text.startswith(p) for p in HARD_BOT_PREFIXES): return True
+    if text.startswith("整理QA"): return True
+    if any(kw in text for kw in HARD_SYSTEM): return True
+    if db_keywords and any(kw in text for kw in db_keywords): return True
+    if not EMOJI_RE.sub("", text).strip(): return True
+    if text in HARD_PHRASES: return True
+    if db_phrases and text in db_phrases: return True
+    if text in ("[圖片]","[貼圖]","[Sticker]") and not msg.get("file_url"): return True
+    return False
+
+# ──────────────────────────────────────────────
+# Gemini 分析
+# ──────────────────────────────────────────────
 def analyze_messages(title, messages):
+    db_phrases, db_senders, db_keywords = get_db_filters()
+    filtered = [m for m in messages if not should_skip(m, db_phrases, db_senders, db_keywords)]
+    print("過濾前：", len(messages), "→ 過濾後：", len(filtered), flush=True)
+    messages = filtered
+
     conversation = ""
     for msg in messages:
-        time_val = msg.get("created_at", "")
-        sender = msg.get("sender", "未知")
-        text = msg.get("text", "")
-        file_url = msg.get("file_url", "")
-        line_str = "[" + time_val + "] " + sender + "：" + text
-        if file_url:
-            line_str += " 📎" + file_url
-        conversation += line_str + "\n"
+        line = "[" + msg.get("created_at","") + "] " + msg.get("sender","未知") + "：" + msg.get("text","")
+        if msg.get("file_url"):
+            line += " 📎" + msg["file_url"]
+        conversation += line + "\n"
 
     prompt = (
-        "以下是LINE群組的客服對話記錄（" + title + "），請整理成Q&A格式。\n\n"
+        "以下是LINE群組的客服對話記錄（" + title + "），請完成兩件事：\n\n"
+        "【第一部分】整理成Q&A格式\n"
         "規則：\n"
         "1. 自動判斷哪些訊息是問題、哪些是回答\n"
         "2. 相同或相似的問題合併成一個Q\n"
@@ -103,208 +982,142 @@ def analyze_messages(title, messages):
         "4. 回答內容後面用括號標明時間與回答者，格式：（YYYY/MM/DD HH:MM 姓名）\n"
         "5. 若有多人回答，用分號「；」連接在同一個A裡，每段回答後各自加括號\n"
         "6. 如果有附圖或附檔，在該Q或A下方另起一行標示「附檔：[說明] [連結]」\n"
-        "7. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊，不要忽略，讓使用者自行判斷\n"
+        "7. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊\n"
         "8. 請用繁體中文輸出\n\n"
-        "對話記錄：\n"
-        + conversation[:30000] +
-        "\n\n請用以下格式輸出：\n\n"
+        "【第二部分】問題分類建議\n"
+        "根據這批對話內容，在最後輸出分類標籤：\n"
+        "【分類標籤】維修、保固、操作（依實際內容，可自行新增類別）\n\n"
+        "對話記錄：\n" + conversation[:30000] + "\n\n"
+        "輸出格式：\n"
         "【" + title + " Q&A整理】\n\n"
-        "Q1：[問題內容]（YYYY/MM/DD HH:MM 提問者姓名）\n"
-        "A：[回答內容]（YYYY/MM/DD HH:MM 回答者姓名）；[補充回答]（YYYY/MM/DD HH:MM 姓名）\n"
-        "附檔：[說明] [連結]\n\n"
-        "---\n\n"
-        "【一般訊息】\n"
-        "[時間] 發話者：訊息內容\n\n"
-        "---\n"
+        "Q1：[問題]（YYYY/MM/DD HH:MM 姓名）\n"
+        "A：[回答]（YYYY/MM/DD HH:MM 姓名）\n\n"
+        "---\n\n【一般訊息】\n[時間] 發話者：內容\n\n---\n\n"
+        "【分類標籤】類別1、類別2\n"
     )
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
     usage = response.usage_metadata
     token_info = {
-        "input": getattr(usage, "prompt_token_count", 0),
+        "input":  getattr(usage, "prompt_token_count", 0),
         "output": getattr(usage, "candidates_token_count", 0),
-        "total": getattr(usage, "total_token_count", 0)
+        "total":  getattr(usage, "total_token_count", 0)
     }
-    return response.text, token_info
-
-def build_token_html(total_tokens):
-    if not total_tokens:
-        return ""
-    status = "在免費範圍內" if total_tokens["total"] < 1000000 else "接近上限"
-    input_t = str(total_tokens["input"])
-    output_t = str(total_tokens["output"])
-    total_t = str(total_tokens["total"])
-    rows = (
-        "<tr><td>輸入 Tokens</td><td>" + input_t + "</td></tr>"
-        "<tr><td>輸出 Tokens</td><td>" + output_t + "</td></tr>"
-        "<tr><td><b>總計 Tokens</b></td><td><b>" + total_t + "</b></td></tr>"
-        "<tr><td>免費額度上限</td><td>1,000,000 tokens/分鐘</td></tr>"
-        "<tr><td>狀態</td><td>" + status + "</td></tr>"
-    )
-    return (
-        "<hr><h3>本次 Token 使用量</h3>"
-        '<table border="1" cellpadding="5" style="border-collapse:collapse">'
-        + rows +
-        "</table>"
-    )
-
-def send_email_with_docx(all_qa_content, subject_note="", total_tokens=None):
-    doc = Document()
-    doc.add_heading("LINE 群組 Q&A 整理報告", 0)
-    doc.add_paragraph("整理時間：" + datetime.now().strftime("%Y/%m/%d %H:%M"))
-    if subject_note:
-        doc.add_paragraph("整理範圍：" + subject_note)
-    doc.add_paragraph("")
-    for title, content in all_qa_content:
-        doc.add_heading(title, level=1)
-        for line in content.split("\n"):
-            doc.add_paragraph(line)
-        doc.add_paragraph("")
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    encoded = base64.b64encode(buffer.read()).decode()
-
-    token_html = build_token_html(total_tokens)
-    html_body = "<p>您好，附件為整理後的 Q&A 文件（" + subject_note + "），請確認格式與內容是否正確。</p>" + token_html
-
-    resend.Emails.send({
-        "from": "onboarding@resend.dev",
-        "to": TO_EMAIL,
-        "subject": "LINE 群組 Q&A 整理報告 " + datetime.now().strftime("%Y/%m/%d") + " [" + subject_note + "]",
-        "html": html_body,
-        "attachments": [{
-            "filename": "QA整理_" + subject_note + "_" + datetime.now().strftime("%Y%m%d") + ".docx",
-            "content": encoded
-        }]
-    })
+    txt = response.text or ""
+    categories = ""
+    if "【分類標籤】" in txt:
+        try:
+            categories = txt.split("【分類標籤】")[-1].strip().split("\n")[0].strip()
+        except:
+            pass
+    return txt, token_info, categories
 
 # ──────────────────────────────────────────────
-# Webhook 主入口
+# 背景執行：自動跑完整年所有批次
+# ──────────────────────────────────────────────
+def process_year_background(year, group_id):
+    offset, batch_num, SIZE = 0, 1, 50
+    print("=== 背景開始：", year, "年 ===", flush=True)
+    while True:
+        try:
+            msgs = supabase.table("messages").select("*")\
+                .like("created_at", year + "%").order("id")\
+                .range(offset, offset + SIZE - 1).execute().data
+            if not msgs:
+                line_bot_api.push_message(group_id, TextSendMessage(
+                    text="🎉 " + year + " 年全部整理完成！共 " + str(batch_num-1) + " 批\n📊 " + WEB_URL))
+                break
+            label = year + "年第" + str(batch_num) + "批"
+            qa_text, token_info, categories = analyze_messages(label, msgs)
+            save_token_log(label, token_info)
+            save_qa_result(year, batch_num, label, qa_text,
+                           offset+1, offset+len(msgs), len(msgs), categories)
+            offset += len(msgs)
+
+            # ── 檢查今日 token 用量 ──
+            today_tokens = get_today_tokens()
+            print("今日累積 tokens：", today_tokens, flush=True)
+            if today_tokens >= 800000:
+                line_bot_api.push_message(group_id, TextSendMessage(
+                    text="⚠️ Token 用量警告！\n"
+                    "今日已使用 " + str(today_tokens) + " tokens\n"
+                    "已達免費上限 80%，自動暫停分析。\n"
+                    "已完成前 " + str(batch_num) + " 批（" + str(offset) + " 筆）\n\n"
+                    "📊 查看用量：\nhttps://hyreadline-webhook.onrender.com/admin"
+                ))
+                print("Token 超過 80% 上限，暫停處理", flush=True)
+                break
+
+            if len(msgs) < SIZE:
+                line_bot_api.push_message(group_id, TextSendMessage(
+                    text="🎉 " + year + " 年全部整理完成！共 " + str(batch_num) + " 批，" + str(offset) + " 筆\n📊 " + WEB_URL))
+                break
+            batch_num += 1
+        except Exception as e:
+            print("背景錯誤：", e, flush=True)
+            line_bot_api.push_message(group_id, TextSendMessage(
+                text="⚠️ 第 " + str(batch_num) + " 批失敗：" + str(e) + "\n已完成前 " + str(batch_num-1) + " 批"))
+            break
+
+# ──────────────────────────────────────────────
+# Webhook
 # ──────────────────────────────────────────────
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    signature = request.headers["X-Line-Signature"]
+    sig = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
     try:
-        handler.handle(body, signature)
+        handler.handle(body, sig)
     except InvalidSignatureError:
         abort(400)
     return "OK"
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
-    text = event.message.text.strip()
+    text   = event.message.text.strip()
     sender = get_sender_name(event)
 
-    # 整理QA 年份（例如：整理QA 2019）
+    # 整理QA 年份（自動全年分批，背景執行）
     if text.startswith("整理QA ") and len(text) == 9:
         year = text.split(" ")[1]
         if year.isdigit() and len(year) == 4:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="⏳ 正在分析 " + year + " 年對話，需要約3~5分鐘，完成後會寄信通知您確認...")
-            )
+            group_id = event.source.group_id
             try:
-                print("=== 開始處理 整理QA", year, "===")
-                print("開始查詢 Supabase...")
-                result = supabase.table("messages").select("*")\
-                    .like("created_at", year + "%")\
-                    .order("id")\
-                    .limit(50)\
-                    .execute()
-                msgs = result.data
-                print("查詢完成，筆數：", len(msgs), flush=True)
-
-                if not msgs:
-                    line_bot_api.push_message(
-                        event.source.group_id,
-                        TextSendMessage(text=year + " 年沒有找到任何訊息！")
-                    )
-                else:
-                    print("開始呼叫 Gemini API...")
-                    qa_text, token_info = analyze_messages(year + "年", msgs)
-                    print("Gemini 完成！Token 使用：", token_info)
-
-                    print("寫入 token_logs...")
-                    save_token_log(year + "年", token_info)
-
-                    print("開始寄信...")
-                    send_email_with_docx(
-                        [(year + "年", qa_text)],
-                        year + "年資料（前200筆）",
-                        token_info
-                    )
-                    print("寄信完成！")
-
-                    line_bot_api.push_message(
-                        event.source.group_id,
-                        TextSendMessage(text="✅ " + year + " 年整理完成！共分析 " + str(len(msgs)) + " 則訊息，已寄送報告到您的信箱，請確認格式與內容！")
-                    )
-            except Exception as e:
-                print("發生錯誤：", str(e))
-                line_bot_api.push_message(
-                    event.source.group_id,
-                    TextSendMessage(text="整理失敗：" + str(e))
-                )
+                total = supabase.table("messages").select("id", count="exact")\
+                    .like("created_at", year + "%").execute().count or 0
+            except:
+                total = 0
+            batch_count = (total // 50) + (1 if total % 50 else 0)
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                text="⏳ 開始分析 " + year + " 年資料\n共 " + str(total) + " 筆，約需 " +
+                     str(batch_count) + " 批\n自動處理中，完成後通知您，請勿重複下指令"))
+            threading.Thread(target=process_year_background, args=(year, group_id), daemon=True).start()
             return
 
-    # 整理QA（只分析新增訊息）
+    # 整理QA（新增訊息）
     if text == "整理QA":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⏳ 正在分析新增對話，完成後會寄信通知您確認...")
-        )
+        line_bot_api.reply_message(event.reply_token,
+            TextSendMessage(text="⏳ 正在分析新增對話，需要約3~5分鐘，請稍候..."))
         try:
-            print("=== 開始處理 整理QA（新增）===")
             last_date = get_setting("last_analyzed_date") or ""
-            print("上次整理時間：", last_date)
-
-            result = supabase.table("messages").select("*")\
-                .gt("created_at", last_date)\
-                .order("id")\
-                .limit(50)\
-                .execute()
-            msgs = result.data
-            print("查詢完成，筆數：", len(msgs), flush=True)
-
+            msgs = supabase.table("messages").select("*")\
+                .gt("created_at", last_date).order("id").limit(50).execute().data
             if not msgs:
-                line_bot_api.push_message(
-                    event.source.group_id,
-                    TextSendMessage(text="目前沒有新的對話需要整理！")
-                )
+                line_bot_api.push_message(event.source.group_id,
+                    TextSendMessage(text="目前沒有新的對話需要整理！"))
             else:
-                print("開始呼叫 Gemini API...")
-                qa_text, token_info = analyze_messages("新增對話", msgs)
-                print("Gemini 完成！Token 使用：", token_info)
-
-                print("寫入 token_logs...")
-                save_token_log("新增對話", token_info)
-
-                print("開始寄信...")
-                send_email_with_docx(
-                    [("新增對話", qa_text)],
-                    "新增對話（" + last_date + "之後）",
-                    token_info
-                )
-                print("寄信完成！")
-
+                label = "新增對話（" + (last_date or "最早") + " 之後）"
+                qa_text, token_info, categories = analyze_messages(label, msgs)
+                save_token_log(label, token_info)
+                save_qa_result("日常", 0, label, qa_text, 0, len(msgs), len(msgs), categories)
                 set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
-                line_bot_api.push_message(
-                    event.source.group_id,
-                    TextSendMessage(text="✅ 新增對話整理完成！共 " + str(len(msgs)) + " 則訊息，已寄送報告到您的信箱，請確認！")
-                )
+                line_bot_api.push_message(event.source.group_id, TextSendMessage(
+                    text="✅ 新增對話整理完成！共 " + str(len(msgs)) + " 則\n分類：" +
+                         (categories or "未分類") + "\n📊 " + WEB_URL))
         except Exception as e:
-            print("發生錯誤：", str(e))
-            line_bot_api.push_message(
-                event.source.group_id,
-                TextSendMessage(text="整理失敗：" + str(e))
-            )
+            print("錯誤：", e, flush=True)
+            line_bot_api.push_message(event.source.group_id,
+                TextSendMessage(text="整理失敗：" + str(e)))
         return
 
     save_message(text, sender)
