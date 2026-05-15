@@ -155,38 +155,52 @@ def qa_page():
 <title>HyRead Q&A 查詢</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;height:100vh;display:flex;flex-direction:column}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;height:100vh;display:flex;flex-direction:column;background:#f5f7fa}
 .topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;flex-shrink:0}
 .topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
-.topbar a+a{margin-left:6px}
-.body{display:flex;flex:1;overflow:hidden}
-aside{width:160px;background:#f9f9f9;border-right:1px solid #eee;padding:10px 8px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
-.sb-lbl{font-size:10px;color:#aaa;padding:6px 4px 3px;letter-spacing:.5px}
+.wrap{display:flex;flex:1;overflow:hidden}
+aside{width:155px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
+.sb-lbl{font-size:10px;color:#aaa;padding:7px 5px 3px;letter-spacing:.5px}
 .yr-btn{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:.5px solid transparent;color:#666;text-align:left}
 .yr-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
-.yr-btn:hover:not(.active){background:#fff}
+.yr-btn:hover:not(.active){background:#f5f5f5}
+.divider{height:.5px;background:#eee;margin:5px 0}
+.cat-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;font-size:11px;color:#666;cursor:pointer}
+.cat-item:hover,.cat-item.active{background:#f0fff0;color:#1b5e20}
+.cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.cat-cnt{font-size:10px;color:#aaa;margin-left:auto}
 main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.ai-bar{padding:11px 16px;border-bottom:1px solid #eee;background:#fff}
-.ai-row{display:flex;gap:8px}
-.ai-input{flex:1;padding:9px 14px;border:1.5px solid #00b900;border-radius:20px;font-size:13px;font-family:inherit;outline:none}
-.ai-btn{width:38px;height:38px;background:#00b900;border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:16px}
-.scope{font-size:10px;color:#aaa;margin-top:5px;padding-left:4px}
-.chat{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
-.msg-u{align-self:flex-end;max-width:70%}
-.bbl-u{background:#00b900;color:#fff;padding:10px 15px;border-radius:18px 18px 4px 18px;font-size:13px;line-height:1.6}
-.msg-ai{align-self:flex-start;max-width:88%}
-.ai-lbl{font-size:11px;color:#aaa;margin-bottom:5px}
-.bbl-ai{background:#f5f5f5;border:.5px solid #e0e0e0;padding:13px 16px;border-radius:4px 18px 18px 18px;font-size:13px;line-height:1.85}
-.suggest{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:8px;padding:20px}
-.suggest p{font-size:13px;color:#bbb}
-.sug{width:100%;max-width:400px;padding:9px 14px;border:.5px solid #ddd;border-radius:8px;font-size:12px;background:#fff;color:#555;cursor:pointer;text-align:left}
-.sug:hover{border-color:#00b900;color:#1b5e20}
-.loading{color:#aaa;font-size:13px;padding:8px 0}
+.search-bar{padding:12px 16px;border-bottom:.5px solid #e0e0e0;background:#fff}
+.search-row{display:flex;gap:8px}
+.kw-input{flex:1;padding:9px 14px;border:1.5px solid #00b900;border-radius:20px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.search-btn{width:38px;height:38px;background:#00b900;border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+.meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:#aaa}
+.meta-badge{background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:99px;font-weight:500}
+.results{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.count-row{font-size:12px;color:#888;padding-bottom:6px;border-bottom:.5px solid #eee}
+.card{background:#fff;border:.5px solid #e0e0e0;border-radius:10px;padding:13px 15px}
+.card:hover{border-color:#b0bec5}
+.q-row{display:flex;gap:8px;margin-bottom:8px}
+.q-icon{width:22px;height:22px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#2e7d32;flex-shrink:0;margin-top:1px;font-weight:500}
+.q-txt{font-size:13px;font-weight:500;color:#333;line-height:1.55;flex:1}
+.card-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.tag{font-size:10px;padding:2px 8px;border-radius:99px}
+.tag-cat{background:#e8f5e9;color:#2e7d32}
+.tag-yr{background:#f5f5f5;color:#888}
+.a-lbl{font-size:10px;color:#aaa;margin-bottom:4px}
+.a-txt{font-size:12px;color:#555;line-height:1.75;border-left:2px solid #00b900;padding-left:10px}
+.hi{background:#fff176;border-radius:2px;padding:0 1px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:#bbb;font-size:13px;gap:8px;text-align:center;padding:20px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
+.chip{padding:7px 14px;border:.5px solid #ddd;border-radius:99px;font-size:12px;color:#666;cursor:pointer;background:#fff}
+.chip:hover{border-color:#00b900;color:#1b5e20}
+.loading{color:#aaa;font-size:13px;text-align:center;padding:40px}
+.err{color:#e53935;font-size:13px;text-align:center;padding:20px}
 </style></head><body>
 <div class="topbar">📋 HyRead LINE Q&A 查詢系統
   <a href="/admin">⚙ 管理介面</a>
 </div>
-<div class="body">
+<div class="wrap">
   <aside>
     <div class="sb-lbl">查詢範圍</div>
     <div class="yr-btn active" onclick="setYr(this,'')">全部年份</div>
@@ -199,71 +213,151 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     <div class="yr-btn" onclick="setYr(this,'2025')">2025 年</div>
     <div class="yr-btn" onclick="setYr(this,'2026')">2026 年</div>
     <div class="yr-btn" onclick="setYr(this,'日常')">日常新增</div>
+    <div class="divider"></div>
+    <div class="sb-lbl">問題分類</div>
+    <div id="catList"></div>
   </aside>
   <main>
-    <div class="ai-bar">
-      <div class="ai-row">
-        <input class="ai-input" id="q" placeholder="直接輸入問題，AI 幫你找答案..." onkeydown="if(event.key==='Enter')ask()">
-        <button class="ai-btn" onclick="ask()">➤</button>
+    <div class="search-bar">
+      <div class="search-row">
+        <input class="kw-input" id="kw" placeholder="輸入關鍵字，例如：召回、APP無法登入、保固..."
+          onkeydown="if(event.key===String.fromCharCode(13))search()">
+        <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
       </div>
-      <div class="scope" id="scope">✦ 目前查詢範圍：全部年份（2019～2026）</div>
+      <div class="meta">
+        <span id="scopeTxt">查詢範圍：全部年份</span>
+        <span id="cntBadge" class="meta-badge" style="display:none"></span>
+        <span style="margin-left:auto">直接搜尋資料庫，無需 AI 配額</span>
+      </div>
     </div>
-    <div class="chat" id="chat">
-      <div class="suggest">
-        <p>試著問這些問題</p>
-        <button class="sug" onclick="fill('歷年最常見的問題是什麼？')">💡 歷年最常見的問題是什麼？</button>
-        <button class="sug" onclick="fill('關於保固的問題有哪些？')">💡 關於保固的問題有哪些？</button>
-        <button class="sug" onclick="fill('APP 無法登入怎麼處理？')">💡 APP 無法登入怎麼處理？</button>
-        <button class="sug" onclick="fill('2019年有哪些召回相關問題？')">💡 2019年有哪些召回相關問題？</button>
+    <div class="results" id="results">
+      <div class="empty">
+        <div>輸入關鍵字開始搜尋</div>
+        <div class="chips">
+          <div class="chip" onclick="fill(this.textContent)">召回</div>
+          <div class="chip" onclick="fill(this.textContent)">保固</div>
+          <div class="chip" onclick="fill(this.textContent)">APP無法登入</div>
+          <div class="chip" onclick="fill(this.textContent)">退款</div>
+          <div class="chip" onclick="fill(this.textContent)">帳號</div>
+          <div class="chip" onclick="fill(this.textContent)">維修</div>
+        </div>
       </div>
     </div>
   </main>
 </div>
 <script>
-var yr='';
-function setYr(el,y){yr=y;document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});el.classList.add('active');document.getElementById('scope').textContent='✦ 目前查詢範圍：'+(y||'全部年份（2019～2026）')}
-function fill(t){document.getElementById('q').value=t;ask()}
-function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>')}
-function ask(){
-  var q=document.getElementById('q').value.trim();if(!q)return;
-  var c=document.getElementById('chat');
-  c.innerHTML='<div class="msg-u"><div class="bbl-u">'+esc(q)+'</div></div><div class="msg-ai"><div class="ai-lbl">✨ AI 助理</div><div class="bbl-ai loading">⏳ 分析中，請稍候...</div></div>';
-  fetch('/qa/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,year:yr})})
-  .then(function(r){return r.json()}).then(function(d){
-    c.innerHTML='<div class="msg-u"><div class="bbl-u">'+esc(q)+'</div></div><div class="msg-ai"><div class="ai-lbl">✨ AI 助理</div><div class="bbl-ai">'+esc(d.answer)+'</div></div>';
-  }).catch(function(){c.innerHTML='<div class="msg-u"><div class="bbl-u">'+esc(q)+'</div></div><div class="msg-ai"><div class="bbl-ai" style="color:#e53935">⚠️ 查詢失敗，請稍後再試</div></div>'})
+var yr='',catFilter='';
+function setYr(el,y){
+  yr=y;
+  document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});
+  el.classList.add('active');
+  document.getElementById('scopeTxt').textContent='查詢範圍：'+(y||'全部年份');
+  if(document.getElementById('kw').value.trim())search();
+}
+function fill(t){document.getElementById('kw').value=t;search()}
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function hilite(text,kw){
+  if(!kw)return text;
+  var result='',lower=text.toLowerCase(),kl=kw.toLowerCase(),i=0;
+  while(i<text.length){
+    var idx=lower.indexOf(kl,i);
+    if(idx<0){result+=text.slice(i);break}
+    result+=text.slice(i,idx)+'<span class="hi">'+text.slice(idx,idx+kw.length)+'</span>';
+    i=idx+kw.length;
+  }
+  return result;
+}
+function search(){
+  var kw=document.getElementById('kw').value.trim();
+  if(!kw)return;
+  document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
+  document.getElementById('cntBadge').style.display='none';
+  fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({keyword:kw,year:yr,category:catFilter})})
+  .then(function(r){return r.json()}).then(function(d){renderResults(d,kw)})
+  .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
+}
+function renderResults(d,kw){
+  var badge=document.getElementById('cntBadge');
+  if(!d.results||d.results.length===0){
+    badge.style.display='none';
+    document.getElementById('results').innerHTML='<div class="empty"><div>找不到「'+esc(kw)+'」的相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字試試</div></div>';
+    return;
+  }
+  badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
+  var html='<div class="count-row">共 '+d.total+' 筆符合「'+esc(kw)+'」的 Q&A</div>';
+  d.results.forEach(function(r){
+    var cats=(r.category||'').split(/[、,，]/).filter(function(c){return c.trim()});
+    var catHtml=cats.slice(0,3).map(function(c){return '<span class="tag tag-cat">'+esc(c.trim())+'</span>'}).join('');
+    html+='<div class="card">'
+      +'<div class="q-row"><div class="q-icon">Q</div><div class="q-txt">'+hilite(esc(r.q_text||''),kw)+'</div></div>'
+      +'<div class="card-tags">'+catHtml+'<span class="tag tag-yr">'+esc(r.year||'')+'</span></div>'
+      +'<div class="a-lbl">回答</div>'
+      +'<div class="a-txt">'+hilite(esc(r.a_text||''),kw)+'</div>'
+      +'</div>';
+  });
+  document.getElementById('results').innerHTML=html;
+}
+fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
+  var html='';
+  cats.forEach(function(c){
+    html+='<div class="cat-item" onclick="setCat(this,\''+esc(c.cat)+'\')">'
+      +'<div class="cat-dot" style="background:#1565c0"></div>'+esc(c.cat)
+      +'<span class="cat-cnt">'+c.cnt+'</span></div>';
+  });
+  document.getElementById('catList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px 8px">尚無分類</div>';
+}).catch(function(){});
+function setCat(el,c){
+  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
+  if(catFilter===c){catFilter=''}else{catFilter=c;el.classList.add('active')}
+  if(document.getElementById('kw').value.trim())search();
 }
 </script></body></html>'''
 
 # ──────────────────────────────────────────────
 # Q&A API
 # ──────────────────────────────────────────────
+@app.route("/qa/api/categories_summary")
+def qa_categories_summary():
+    try:
+        rows = supabase.table("qa_items").select("category").execute().data
+        from collections import Counter
+        counter = Counter()
+        for r in rows:
+            for c in re.split(r"[、,，]", r.get("category") or ""):
+                c = c.strip()
+                if c:
+                    counter[c] += 1
+        result = [{"cat": k, "cnt": v} for k, v in counter.most_common(10)]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify([])
+
 @app.route("/qa/api/batches")
 def qa_batches():
     result = supabase.table("qa_results").select("id,year,batch_num,title,analyzed_at,total_msgs,categories,user_category,category_confirmed").order("id").execute()
     return jsonify(result.data)
 
-@app.route("/qa/api/ask", methods=["POST"])
-def qa_ask():
+@app.route("/qa/api/search", methods=["POST"])
+def qa_search():
     data = request.get_json()
-    question = (data.get("question") or "").strip()
+    keyword = (data.get("keyword") or "").strip()
     year = data.get("year", "")
-    if not question:
-        return jsonify({"answer": "請輸入問題", "sources": []})
-    query = supabase.table("qa_results").select("title,content,year")
-    if year:
-        query = query.eq("year", year)
-    batches = query.order("id").execute().data
-    if not batches:
-        return jsonify({"answer": "目前尚無資料，請先在 LINE 執行整理QA 指令。", "sources": []})
-    combined = ""
-    for b in batches:
-        combined += "=== " + b["title"] + " ===\n" + (b.get("content") or "") + "\n\n"
-    prompt = ("以下是HyRead LINE群組的歷史Q&A整理資料：\n\n" + combined[:40000] +
-              "\n\n請根據以上資料，用繁體中文回答：\n" + question +
-              "\n\n規則：1.直接回答，條列重點 2.整合多筆相關資料 3.找不到請說明 4.繁體中文")
-    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-    return jsonify({"answer": response.text, "sources": []})
+    category = data.get("category", "")
+    if not keyword:
+        return jsonify({"results": [], "total": 0})
+    try:
+        or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
+        query = supabase.table("qa_items").select("*").or_(or_filter)
+        if year:
+            query = query.eq("year", year)
+        if category:
+            query = query.ilike("category", "%" + category + "%")
+        rows = query.order("id").execute().data
+        return jsonify({"results": rows[:30], "total": len(rows)})
+    except Exception as e:
+        print("搜尋失敗：", e, flush=True)
+        return jsonify({"results": [], "total": 0, "error": str(e)})
 
 # ──────────────────────────────────────────────
 # 管理介面主頁
@@ -380,6 +474,14 @@ tr:hover td{background:#fafafa}
 
 <!-- 分析總覽 -->
 <div class="panel" id="tab-stats">
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">🔄 補跑解析舊資料</div>
+    <div style="font-size:12px;color:#777;margin-bottom:10px">將已整理的批次資料重新解析存入 qa_items，讓查詢頁面可以搜尋。第一次部署或有新批次時點此執行。</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn-green" onclick="reparse()">▶ 立即補跑解析</button>
+      <span id="reparseMsg" style="font-size:12px;color:#2e7d32"></span>
+    </div>
+  </div>
   <div class="stat-grid" id="statCards"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card">
@@ -528,6 +630,27 @@ function saveEdit(id){
   fetch('/admin/api/categories/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({user_category:val,confirmed:true})})
   .then(function(){loadCategories()});
+}
+
+/* ── 補跑解析 ── */
+function reparse(){
+  var btn=event.target;
+  btn.disabled=true;btn.textContent='解析中，請稍候...';
+  document.getElementById('reparseMsg').textContent='';
+  fetch('/admin/api/reparse',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    btn.disabled=false;btn.textContent='▶ 立即補跑解析';
+    if(d.success){
+      document.getElementById('reparseMsg').textContent='✅ '+d.message;
+      loadStats();
+    } else {
+      document.getElementById('reparseMsg').style.color='#e53935';
+      document.getElementById('reparseMsg').textContent='失敗：'+d.error;
+    }
+  }).catch(function(){
+    btn.disabled=false;btn.textContent='▶ 立即補跑解析';
+    document.getElementById('reparseMsg').style.color='#e53935';
+    document.getElementById('reparseMsg').textContent='連線失敗，請稍後再試';
+  });
 }
 
 /* ── 分析總覽 ── */
@@ -804,6 +927,30 @@ def get_stats():
 # ──────────────────────────────────────────────
 # 管理 API — Token 用量統計
 # ──────────────────────────────────────────────
+@app.route("/admin/api/reparse", methods=["POST"])
+@require_admin
+def reparse_qa_items():
+    """將 qa_results 的舊資料重新解析存入 qa_items"""
+    try:
+        # 清除現有 qa_items（避免重複）
+        supabase.table("qa_items").delete().neq("id", 0).execute()
+        # 讀取所有 qa_results
+        rows = supabase.table("qa_results").select("*").order("id").execute().data
+        total_items = 0
+        for row in rows:
+            parse_and_save_qa_items(
+                content=row.get("content") or "",
+                year=row.get("year") or "",
+                batch_num=row.get("batch_num") or 0,
+                batch_id=row.get("id"),
+                categories=row.get("categories") or ""
+            )
+            total_items += 1
+        return jsonify({"success": True, "batches": len(rows), "message": "已重新解析 " + str(len(rows)) + " 個批次"})
+    except Exception as e:
+        print("reparse 失敗：", e, flush=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/admin/api/token_stats")
 @require_admin
 def get_token_stats():
@@ -887,6 +1034,57 @@ def get_today_tokens():
         return sum((r.get("total_tokens") or 0) for r in result.data)
     except:
         return 0
+
+def parse_and_save_qa_items(content, year, batch_num, batch_id, categories):
+    """將 Gemini Q&A 輸出解析成獨立記錄存入 qa_items"""
+    try:
+        items = []
+        lines = (content or "").split("\n")
+        current_q, current_a = None, []
+
+        for line in lines:
+            s = line.strip()
+            if not s:
+                continue
+            if "【一般訊息】" in s or "【分類標籤】" in s:
+                if current_q and current_a:
+                    items.append({"batch_id": batch_id, "year": year,
+                        "batch_num": batch_num, "q_text": current_q,
+                        "a_text": " ".join(current_a), "category": categories,
+                        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                break
+            if s == "---":
+                if current_q and current_a:
+                    items.append({"batch_id": batch_id, "year": year,
+                        "batch_num": batch_num, "q_text": current_q,
+                        "a_text": " ".join(current_a), "category": categories,
+                        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                    current_q, current_a = None, []
+                continue
+            if re.match(r"^Q\d+[：:]", s):
+                if current_q and current_a:
+                    items.append({"batch_id": batch_id, "year": year,
+                        "batch_num": batch_num, "q_text": current_q,
+                        "a_text": " ".join(current_a), "category": categories,
+                        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                current_q = s
+                current_a = []
+            elif re.match(r"^A[：:]", s) and current_q:
+                current_a.append(s)
+            elif current_a and s:
+                current_a.append(s)
+
+        if current_q and current_a:
+            items.append({"batch_id": batch_id, "year": year,
+                "batch_num": batch_num, "q_text": current_q,
+                "a_text": " ".join(current_a), "category": categories,
+                "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+
+        if items:
+            supabase.table("qa_items").insert(items).execute()
+            print("qa_items 儲存：", len(items), "筆", flush=True)
+    except Exception as e:
+        print("qa_items 儲存失敗：", e, flush=True)
 
 def save_qa_result(year, batch_num, title, content, start_row, end_row, total_msgs, categories=""):
     try:
@@ -1044,8 +1242,20 @@ def process_year_background(year, group_id):
             label = year + "年第" + str(batch_num) + "批"
             qa_text, token_info, categories = analyze_messages(label, msgs)
             save_token_log(label, token_info)
-            save_qa_result(year, batch_num, label, qa_text,
-                           offset+1, offset+len(msgs), len(msgs), categories)
+            result_id = None
+            try:
+                r = supabase.table("qa_results").insert({
+                    "year": year, "batch_num": batch_num, "title": label,
+                    "content": qa_text,
+                    "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                    "start_row": offset+1, "end_row": offset+len(msgs),
+                    "total_msgs": len(msgs), "categories": categories
+                }).execute()
+                if r.data:
+                    result_id = r.data[0]["id"]
+            except Exception as e:
+                print("qa_results 儲存失敗：", e, flush=True)
+            parse_and_save_qa_items(qa_text, year, batch_num, result_id, categories)
             offset += len(msgs)
 
             # ── 檢查今日 token 用量 ──
@@ -1123,7 +1333,19 @@ def handle_text(event):
                 label = "新增對話（" + (last_date or "最早") + " 之後）"
                 qa_text, token_info, categories = analyze_messages(label, msgs)
                 save_token_log(label, token_info)
-                save_qa_result("日常", 0, label, qa_text, 0, len(msgs), len(msgs), categories)
+                try:
+                    r2 = supabase.table("qa_results").insert({
+                        "year": "日常", "batch_num": 0, "title": label,
+                        "content": qa_text,
+                        "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                        "start_row": 0, "end_row": len(msgs),
+                        "total_msgs": len(msgs), "categories": categories
+                    }).execute()
+                    rid2 = r2.data[0]["id"] if r2.data else None
+                except Exception as e:
+                    print("qa_results 儲存失敗：", e, flush=True)
+                    rid2 = None
+                parse_and_save_qa_items(qa_text, "日常", 0, rid2, categories)
                 set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
                 line_bot_api.push_message(event.source.group_id, TextSendMessage(
                     text="✅ 新增對話整理完成！共 " + str(len(msgs)) + " 則\n分類：" +
