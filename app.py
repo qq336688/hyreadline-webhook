@@ -1016,7 +1016,21 @@ def analyze_messages(title, messages):
 # 背景執行：自動跑完整年所有批次
 # ──────────────────────────────────────────────
 def process_year_background(year, group_id):
-    offset, batch_num, SIZE = 0, 1, 50
+    SIZE = 50
+    # 從上次失敗的批次繼續（查已存入的最大批次）
+    try:
+        done = supabase.table("qa_results").select("batch_num")\
+            .eq("year", year).order("batch_num", desc=True).limit(1).execute()
+        last_done = done.data[0]["batch_num"] if done.data else 0
+    except:
+        last_done = 0
+    offset = last_done * SIZE
+    batch_num = last_done + 1
+    if last_done > 0:
+        print("從第", batch_num, "批繼續（已完成前", last_done, "批）", flush=True)
+        line_bot_api.push_message(group_id, TextSendMessage(
+            text="📋 " + year + " 年從第 " + str(batch_num) + " 批繼續（已完成前 " + str(last_done) + " 批）"
+        ))
     print("=== 背景開始：", year, "年 ===", flush=True)
     while True:
         try:
