@@ -223,7 +223,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 var yr='';
 function setYr(el,y){yr=y;document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});el.classList.add('active');document.getElementById('scope').textContent='✦ 目前查詢範圍：'+(y||'全部年份（2019～2026）')}
 function fill(t){document.getElementById('q').value=t;ask()}
-function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').join('<br>')}
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>')}
 function ask(){
   var q=document.getElementById('q').value.trim();if(!q)return;
   var c=document.getElementById('chat');
