@@ -80,8 +80,68 @@ input:focus{border-color:#00b900}
 
 @app.route("/admin/logout")
 def admin_logout():
-    session.clear()
+    session.pop("admin_logged_in", None)
+    session.pop("admin_username", None)
     return redirect("/admin/login")
+
+# ──────────────────────────────────────────────
+# 查詢介面 登入驗證
+# ──────────────────────────────────────────────
+def require_qa(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("qa_logged_in"):
+            return redirect("/qa/login")
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route("/qa/login", methods=["GET", "POST"])
+def qa_login():
+    error = ""
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "")
+        result = supabase.table("admin_users").select("*")\
+            .eq("username", username).eq("is_active", True).execute()
+        if result.data and check_password_hash(result.data[0]["password_hash"], password):
+            session["qa_logged_in"] = True
+            session["qa_username"] = username
+            return redirect("/qa")
+        error = "帳號或密碼錯誤"
+    return '''<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HyRead Q&A 查詢登入</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:#f5f7fa;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.box{background:#fff;border-radius:12px;border:.5px solid #e0e0e0;padding:32px 36px;width:340px}
+.logo{text-align:center;font-size:28px;margin-bottom:8px}
+h2{text-align:center;font-size:16px;font-weight:500;color:#333;margin-bottom:24px}
+label{font-size:12px;color:#777;display:block;margin-bottom:4px}
+input{width:100%;padding:9px 12px;border:.5px solid #ddd;border-radius:6px;font-size:13px;margin-bottom:14px;font-family:inherit;outline:none}
+input:focus{border-color:#00b900}
+.btn{width:100%;padding:10px;background:#00b900;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:500}
+.err{color:#e53935;font-size:12px;text-align:center;margin-bottom:12px}
+</style></head><body>
+<div class="box">
+  <div class="logo">🔍</div>
+  <h2>HyRead Q&A 查詢系統</h2>
+  ''' + (f'<div class="err">{error}</div>' if error else '') + '''
+  <form method="POST">
+    <label>帳號</label>
+    <input type="text" name="username" placeholder="請輸入帳號" autofocus>
+    <label>密碼</label>
+    <input type="password" name="password" placeholder="請輸入密碼">
+    <button class="btn" type="submit">登入</button>
+  </form>
+</div></body></html>'''
+
+@app.route("/qa/logout")
+def qa_logout():
+    session.pop("qa_logged_in", None)
+    session.pop("qa_username", None)
+    return redirect("/qa/login")
 
 @app.route("/admin/setup", methods=["GET", "POST"])
 def admin_setup():
@@ -148,6 +208,7 @@ def ping():
 # Q&A 查詢主頁
 # ──────────────────────────────────────────────
 @app.route("/qa")
+@require_qa
 def qa_page():
     return '''<!DOCTYPE html>
 <html lang="zh-TW"><head><meta charset="UTF-8">
@@ -194,11 +255,15 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
 .chip{padding:7px 14px;border:.5px solid #ddd;border-radius:99px;font-size:12px;color:#666;cursor:pointer;background:#fff}
 .chip:hover{border-color:#00b900;color:#1b5e20}
+.cat-card{background:#fff;border:.5px solid #e0e0e0;border-radius:8px;padding:10px 13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#444}
+.cat-card:hover{border-color:#00b900;color:#1b5e20;background:#f0fff0}
+.cat-card-cnt{font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:99px;padding:2px 8px;flex-shrink:0}
 .loading{color:#aaa;font-size:13px;text-align:center;padding:40px}
 .err{color:#e53935;font-size:13px;text-align:center;padding:20px}
 </style></head><body>
 <div class="topbar">📋 HyRead LINE Q&A 查詢系統
   <a href="/admin">⚙ 管理介面</a>
+  <a href="/qa/logout" style="margin-left:6px">登出</a>
 </div>
 <div class="wrap">
   <aside>
@@ -231,8 +296,8 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
       </div>
     </div>
     <div class="results" id="results">
-      <div class="empty">
-        <div>輸入關鍵字開始搜尋</div>
+      <div class="empty" id="homeState">
+        <div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字開始搜尋</div>
         <div class="chips">
           <div class="chip" onclick="fill(this.textContent)">召回</div>
           <div class="chip" onclick="fill(this.textContent)">保固</div>
@@ -240,6 +305,10 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
           <div class="chip" onclick="fill(this.textContent)">退款</div>
           <div class="chip" onclick="fill(this.textContent)">帳號</div>
           <div class="chip" onclick="fill(this.textContent)">維修</div>
+        </div>
+        <div style="width:100%;max-width:640px;margin-top:20px;text-align:left">
+          <div style="font-size:11px;color:#aaa;letter-spacing:.5px;margin-bottom:10px;padding-left:2px">📂 全部問題分類</div>
+          <div id="catBrowse" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div>
         </div>
       </div>
     </div>
@@ -301,11 +370,23 @@ function renderResults(d,kw){
 fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
   var html='';
   cats.forEach(function(c){
-    html+='<div class="cat-item" onclick="setCat(this,\''+esc(c.cat)+'\')">'
+    html+='<div class="cat-item" onclick="setCat(this,\\''+esc(c.cat)+'\\')">\'
       +'<div class="cat-dot" style="background:#1565c0"></div>'+esc(c.cat)
       +'<span class="cat-cnt">'+c.cnt+'</span></div>';
   });
   document.getElementById('catList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px 8px">尚無分類</div>';
+  /* 首頁分類瀏覽卡片 */
+  var browse=document.getElementById('catBrowse');
+  if(browse){
+    var bHtml='';
+    cats.forEach(function(c){
+      bHtml+='<div class="cat-card" onclick="fill(\\''+esc(c.cat)+'\\')">'
+        +'<span>'+esc(c.cat)+'</span>'
+        +'<span class="cat-card-cnt">'+c.cnt+'</span>'
+        +'</div>';
+    });
+    browse.innerHTML=bHtml||'<div style="color:#ccc;font-size:12px">尚無分類資料</div>';
+  }
 }).catch(function(){});
 function setCat(el,c){
   document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
@@ -318,6 +399,7 @@ function setCat(el,c){
 # Q&A API
 # ──────────────────────────────────────────────
 @app.route("/qa/api/categories_summary")
+@require_qa
 def qa_categories_summary():
     try:
         rows = supabase.table("qa_items").select("category").execute().data
@@ -334,11 +416,13 @@ def qa_categories_summary():
         return jsonify([])
 
 @app.route("/qa/api/batches")
+@require_qa
 def qa_batches():
     result = supabase.table("qa_results").select("id,year,batch_num,title,analyzed_at,total_msgs,categories,user_category,category_confirmed").order("id").execute()
     return jsonify(result.data)
 
 @app.route("/qa/api/search", methods=["POST"])
+@require_qa
 def qa_search():
     data = request.get_json()
     keyword = (data.get("keyword") or "").strip()
@@ -497,8 +581,11 @@ tr:hover td{background:#fafafa}
 
 <!-- 帳號管理 -->
 <div class="panel" id="tab-users">
+  <div class="card" style="margin-bottom:10px;background:#f0fff0;border-color:#a5d6a7">
+    <div style="font-size:12px;color:#2e7d32">ℹ️ 以下帳號同時適用於 <b>管理介面</b> 和 <b>查詢介面（/qa）</b> 的登入。如需新增只能查詢、不能進管理介面的帳號，請聯絡工程師另行設定。</div>
+  </div>
   <div class="card">
-    <div class="card-title">➕ 新增管理者帳號</div>
+    <div class="card-title">➕ 新增帳號</div>
     <div class="add-row">
       <input type="text" id="newUsr" placeholder="帳號" style="width:150px">
       <input type="password" id="newPwd" placeholder="密碼（至少6個字元）" style="width:200px">
@@ -507,7 +594,7 @@ tr:hover td{background:#fafafa}
     <div id="userMsg"></div>
   </div>
   <div class="card">
-    <div class="card-title">👥 管理者清單</div>
+    <div class="card-title">👥 帳號清單</div>
     <table>
       <thead><tr><th>帳號</th><th>建立時間</th><th>狀態</th><th>操作</th></tr></thead>
       <tbody id="userTable"><tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
