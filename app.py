@@ -5,7 +5,7 @@ from linebot.models import (MessageEvent, TextMessage, TextSendMessage,
                              ImageMessage, FileMessage)
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-import os, re, threading
+import os, re, threading, time
 from google import genai
 from supabase import create_client
 from datetime import datetime
@@ -1281,7 +1281,20 @@ def analyze_messages(title, messages):
         "【分類標籤】類別1、類別2\n"
     )
 
-    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    # 503 自動重試（最多 5 次，間隔 15/30/60/120 秒）
+    delays = [15, 30, 60, 120, 120]
+    for attempt, delay in enumerate(delays, 1):
+        try:
+            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            break
+        except Exception as e:
+            err_str = str(e)
+            if "503" in err_str or "UNAVAILABLE" in err_str:
+                if attempt <= len(delays) - 1:
+                    print(f"Gemini 503，第 {attempt} 次重試，等待 {delay} 秒...", flush=True)
+                    time.sleep(delay)
+                    continue
+            raise  # 非 503 或已達上限，直接往上拋出
     usage = response.usage_metadata
     token_info = {
         "input":  getattr(usage, "prompt_token_count", 0),
