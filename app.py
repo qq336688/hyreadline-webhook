@@ -890,7 +890,9 @@ def list_exchange():
             f"repair_no.ilike.%{search}%,"
             f"customer_contact.ilike.%{search}%,"
             f"order_info.ilike.%{search}%,"
-            f"original_sn.ilike.%{search}%"
+            f"original_sn.ilike.%{search}%,"
+            f"item.ilike.%{search}%,"
+            f"cs_staff.ilike.%{search}%"
         )
 
     if p.get('return_received'):
