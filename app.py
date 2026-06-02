@@ -347,7 +347,7 @@ function hilite(text,kw){
 }
 function search(){
   var kw=document.getElementById('kw').value.trim();
-  if(!kw)return;
+  if(!kw&&!catFilter)return;
   document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
   document.getElementById('cntBadge').style.display='none';
   fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -399,8 +399,7 @@ fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(func
 }).catch(function(){});
 function setCat(el,c){
   document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
-  if(catFilter===c){catFilter=''}else{catFilter=c;el.classList.add('active')}
-  if(document.getElementById('kw').value.trim())search();
+  if(catFilter===c){catFilter='';search();}else{catFilter=c;el.classList.add('active');search();}
 }
 </script></body></html>'''
 
@@ -437,11 +436,13 @@ def qa_search():
     keyword = (data.get("keyword") or "").strip()
     year = data.get("year", "")
     category = data.get("category", "")
-    if not keyword:
+    if not keyword and not category:
         return jsonify({"results": [], "total": 0})
     try:
-        or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
-        query = supabase.table("qa_items").select("*").or_(or_filter)
+        query = supabase.table("qa_items").select("*")
+        if keyword:
+            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
+            query = query.or_(or_filter)
         if year:
             query = query.eq("year", year)
         if category:
