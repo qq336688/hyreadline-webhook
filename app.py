@@ -324,7 +324,7 @@ function setYr(el,y){
   document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});
   el.classList.add('active');
   document.getElementById('scopeTxt').textContent='查詢範圍：'+(y||'全部年份');
-  if(document.getElementById('kw').value.trim()||catFilter)search();
+  search();
 }
 function fill(t){document.getElementById('kw').value=t;search()}
 function clearSearch(){
@@ -347,7 +347,7 @@ function hilite(text,kw){
 }
 function search(){
   var kw=document.getElementById('kw').value.trim();
-  if(!kw&&!catFilter)return;
+  if(!kw&&!catFilter&&!yr)return;
   document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
   document.getElementById('cntBadge').style.display='none';
   fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
