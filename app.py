@@ -222,9 +222,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-seri
 .wrap{display:flex;flex:1;overflow:hidden}
 aside{width:155px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
 .sb-lbl{font-size:10px;color:#aaa;padding:7px 5px 3px;letter-spacing:.5px}
-.yr-btn{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:.5px solid transparent;color:#666;text-align:left}
-.yr-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
-.yr-btn:hover:not(.active){background:#f5f5f5}
+.yr-link{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:.5px solid transparent;color:#666;text-align:left}
+.yr-link.active{background:#e8f5e9;border:.5px solid #00b900;color:#1b5e20;font-weight:500}
+.yr-link:hover:not(.active){background:#f5f5f5}
+.yr-checks{display:flex;flex-wrap:wrap;gap:4px 10px;padding:5px 2px 0;font-size:11px;color:#555}
+.yr-checks label{display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap}
+.yr-checks input[type=checkbox]{accent-color:#00b900;width:13px;height:13px;cursor:pointer}
 .divider{height:.5px;background:#eee;margin:5px 0}
 .cat-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;font-size:11px;color:#666;cursor:pointer}
 .cat-item:hover,.cat-item.active{background:#f0fff0;color:#1b5e20}
@@ -269,17 +272,16 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 </div>
 <div class="wrap">
   <aside>
-    <div class="sb-lbl">查詢範圍</div>
-    <div class="yr-btn active" onclick="setYr(this,'')">全部年份</div>
-    <div class="yr-btn" onclick="setYr(this,'2019')">2019 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2020')">2020 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2021')">2021 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2022')">2022 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2023')">2023 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2024')">2024 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2025')">2025 年</div>
-    <div class="yr-btn" onclick="setYr(this,'2026')">2026 年</div>
-    <div class="yr-btn" onclick="setYr(this,'日常')">日常新增</div>
+    <div class="sb-lbl">歷史資料瀏覽</div>
+    <div class="yr-link" onclick="browseYear(this,'2019')">2019 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2020')">2020 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2021')">2021 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2022')">2022 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2023')">2023 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2024')">2024 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2025')">2025 年</div>
+    <div class="yr-link" onclick="browseYear(this,'2026')">2026 年</div>
+    <div class="yr-link" onclick="browseYear(this,'日常')">日常新增</div>
     <div class="divider"></div>
     <div class="sb-lbl">問題分類</div>
     <div id="catList"></div>
@@ -291,6 +293,18 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
           onkeydown="if(event.key===\'Enter\')search()">
         <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
         <button class="clear-btn" onclick="clearSearch()" title="清除">&#x2715;</button>
+      </div>
+      <div class="yr-checks">
+        <label><input type="checkbox" id="yrAll" checked onchange="toggleAllYrs(this)">全選</label>
+        <label><input type="checkbox" class="yr-ck" value="2019" checked onchange="onYrCkChange()">2019</label>
+        <label><input type="checkbox" class="yr-ck" value="2020" checked onchange="onYrCkChange()">2020</label>
+        <label><input type="checkbox" class="yr-ck" value="2021" checked onchange="onYrCkChange()">2021</label>
+        <label><input type="checkbox" class="yr-ck" value="2022" checked onchange="onYrCkChange()">2022</label>
+        <label><input type="checkbox" class="yr-ck" value="2023" checked onchange="onYrCkChange()">2023</label>
+        <label><input type="checkbox" class="yr-ck" value="2024" checked onchange="onYrCkChange()">2024</label>
+        <label><input type="checkbox" class="yr-ck" value="2025" checked onchange="onYrCkChange()">2025</label>
+        <label><input type="checkbox" class="yr-ck" value="2026" checked onchange="onYrCkChange()">2026</label>
+        <label><input type="checkbox" class="yr-ck" value="日常" checked onchange="onYrCkChange()">日常</label>
       </div>
       <div class="meta">
         <span id="scopeTxt">查詢範圍：全部年份</span>
@@ -318,20 +332,53 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var yr='',catFilter='';
-function setYr(el,y){
-  yr=y;
-  document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});
-  el.classList.add('active');
-  document.getElementById('scopeTxt').textContent='查詢範圍：'+(y||'全部年份');
-  search();
+var catFilter='',browseMode=false,browseYr='';
+
+/* ── 年份勾選 ── */
+function getCheckedYears(){
+  if(document.getElementById('yrAll').checked)return[];
+  return Array.from(document.querySelectorAll('.yr-ck:checked')).map(function(c){return c.value});
 }
-function fill(t){document.getElementById('kw').value=t;search()}
+function toggleAllYrs(cb){
+  document.querySelectorAll('.yr-ck').forEach(function(c){c.checked=cb.checked});
+  updateScopeTxt();
+}
+function onYrCkChange(){
+  var all=document.querySelectorAll('.yr-ck'),ck=document.querySelectorAll('.yr-ck:checked');
+  document.getElementById('yrAll').checked=(all.length===ck.length);
+  updateScopeTxt();
+}
+function updateScopeTxt(){
+  var years=getCheckedYears();
+  document.getElementById('scopeTxt').textContent='查詢範圍：'+(years.length===0?'全部年份':years.join('、'));
+}
+
+/* ── 側欄年份瀏覽 ── */
+function browseYear(el,y){
+  browseMode=true;browseYr=y;catFilter='';
+  document.getElementById('kw').value='';
+  document.querySelectorAll('.yr-link').forEach(function(e){e.classList.remove('active')});
+  el.classList.add('active');
+  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
+  document.getElementById('scopeTxt').textContent='瀏覽：'+y+(y==='日常'?'新增':' 年');
+  _doSearch();
+}
+
+/* ── 退出瀏覽模式 ── */
+function exitBrowse(){
+  browseMode=false;browseYr='';
+  document.querySelectorAll('.yr-link').forEach(function(e){e.classList.remove('active')});
+  updateScopeTxt();
+}
+
+function fill(t){exitBrowse();document.getElementById('kw').value=t;_doSearch()}
 function clearSearch(){
   document.getElementById('kw').value='';
   document.getElementById('kw').focus();
-  document.getElementById('results').innerHTML='<div class="empty"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字開始搜尋</div></div>';
+  exitBrowse();catFilter='';
+  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
   document.getElementById('cntBadge').style.display='none';
+  document.getElementById('results').innerHTML=\'<div class="empty" id="homeState"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字開始搜尋</div><div class="chips"><div class="chip" onclick="fill(this.textContent)">召回</div><div class="chip" onclick="fill(this.textContent)">保固</div><div class="chip" onclick="fill(this.textContent)">APP無法登入</div><div class="chip" onclick="fill(this.textContent)">退款</div><div class="chip" onclick="fill(this.textContent)">帳號</div><div class="chip" onclick="fill(this.textContent)">維修</div></div></div>\';
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
@@ -347,25 +394,32 @@ function hilite(text,kw){
 }
 function search(){
   var kw=document.getElementById('kw').value.trim();
-  if(!kw&&!catFilter&&!yr)return;
+  if(kw||catFilter)exitBrowse();
+  _doSearch();
+}
+function _doSearch(){
+  var kw=document.getElementById('kw').value.trim();
+  var years=browseMode?[browseYr]:getCheckedYears();
+  if(!kw&&!catFilter&&!browseMode)return;
   document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
   document.getElementById('cntBadge').style.display='none';
   fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({keyword:kw,year:yr,category:catFilter})})
+    body:JSON.stringify({keyword:kw,years:years,category:catFilter})})
   .then(function(r){return r.json()}).then(function(d){renderResults(d,kw)})
   .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
 }
 function renderResults(d,kw){
   var badge=document.getElementById('cntBadge');
+  var browseLabel=browseYr+(browseYr==='日常'?'新增':' 年');
   if(!d.results||d.results.length===0){
     badge.style.display='none';
-    var label=kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':'');
-    document.getElementById('results').innerHTML='<div class="empty"><div>找不到'+label+'的相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或分類試試</div></div>';
+    var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':''));
+    document.getElementById('results').innerHTML='<div class="empty"><div>找不到 '+label+' 的相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或分類試試</div></div>';
     return;
   }
   badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
-  var label=kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':'');
-  var html='<div class="count-row">共 '+d.total+' 筆符合'+label+'的 Q&A</div>';
+  var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':''));
+  var html='<div class="count-row">共 '+d.total+' 筆'+(label?'符合 '+label+' 的':'')+'Q&A</div>';
   d.results.forEach(function(r){
     var cats=(r.category||'').split(/[、,，]/).filter(function(c){return c.trim()});
     var catHtml=cats.slice(0,3).map(function(c){return '<span class="tag tag-cat">'+esc(c.trim())+'</span>'}).join('');
@@ -400,19 +454,15 @@ fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(func
   }
 }).catch(function(){});
 function setCat(el,c){
+  exitBrowse();
   document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
   if(catFilter===c){
     catFilter='';
   }else{
     catFilter=c;
     el.classList.add('active');
-    /* 點分類時重設年份為全部，避免雙重篩選無資料 */
-    yr='';
-    document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});
-    document.querySelector('.yr-btn').classList.add('active');
-    document.getElementById('scopeTxt').textContent='查詢範圍：全部年份';
   }
-  search();
+  _doSearch();
 }
 </script></body></html>'''
 
@@ -447,21 +497,21 @@ def qa_batches():
 def qa_search():
     data = request.get_json()
     keyword = (data.get("keyword") or "").strip()
-    year = data.get("year", "")
+    years = data.get("years", [])  # list of year strings; empty = all years
     category = data.get("category", "")
-    if not keyword and not category:
+    if not keyword and not category and not years:
         return jsonify({"results": [], "total": 0})
     try:
         query = supabase.table("qa_items").select("*")
         if keyword:
             or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
             query = query.or_(or_filter)
-        if year:
-            query = query.eq("year", year)
+        if years:
+            query = query.in_("year", years)
         if category:
             query = query.ilike("category", "%" + category + "%")
         rows = query.order("id").execute().data
-        return jsonify({"results": rows[:30], "total": len(rows)})
+        return jsonify({"results": rows[:50], "total": len(rows)})
     except Exception as e:
         print("搜尋失敗：", e, flush=True)
         return jsonify({"results": [], "total": 0, "error": str(e)})
