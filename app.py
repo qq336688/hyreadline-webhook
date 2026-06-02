@@ -324,7 +324,7 @@ function setYr(el,y){
   document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});
   el.classList.add('active');
   document.getElementById('scopeTxt').textContent='查詢範圍：'+(y||'全部年份');
-  if(document.getElementById('kw').value.trim())search();
+  if(document.getElementById('kw').value.trim()||catFilter)search();
 }
 function fill(t){document.getElementById('kw').value=t;search()}
 function clearSearch(){
