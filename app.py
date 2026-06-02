@@ -235,6 +235,8 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .search-row{display:flex;gap:8px}
 .kw-input{flex:1;padding:9px 14px;border:1.5px solid #00b900;border-radius:20px;font-size:13px;font-family:inherit;outline:none;background:#fff}
 .search-btn{width:38px;height:38px;background:#00b900;border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+.clear-btn{width:38px;height:38px;background:#e0e0e0;border:none;border-radius:50%;cursor:pointer;color:#666;font-size:16px;display:flex;align-items:center;justify-content:center}
+.clear-btn:hover{background:#bdbdbd}
 .meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:#aaa}
 .meta-badge{background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:99px;font-weight:500}
 .results{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
@@ -286,8 +288,9 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     <div class="search-bar">
       <div class="search-row">
         <input class="kw-input" id="kw" placeholder="輸入關鍵字，例如：召回、APP無法登入、保固..."
-          onkeydown="if(event.key===String.fromCharCode(13))search()">
+          onkeydown="if(event.key===\'Enter\')search()">
         <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
+        <button class="clear-btn" onclick="clearSearch()" title="清除">&#x2715;</button>
       </div>
       <div class="meta">
         <span id="scopeTxt">查詢範圍：全部年份</span>
@@ -324,6 +327,12 @@ function setYr(el,y){
   if(document.getElementById('kw').value.trim())search();
 }
 function fill(t){document.getElementById('kw').value=t;search()}
+function clearSearch(){
+  document.getElementById('kw').value='';
+  document.getElementById('kw').focus();
+  document.getElementById('results').innerHTML='<div class="empty"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字開始搜尋</div></div>';
+  document.getElementById('cntBadge').style.display='none';
+}
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
   if(!kw)return text;
