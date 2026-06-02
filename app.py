@@ -359,11 +359,13 @@ function renderResults(d,kw){
   var badge=document.getElementById('cntBadge');
   if(!d.results||d.results.length===0){
     badge.style.display='none';
-    document.getElementById('results').innerHTML='<div class="empty"><div>找不到「'+esc(kw)+'」的相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字試試</div></div>';
+    var label=kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':'');
+    document.getElementById('results').innerHTML='<div class="empty"><div>找不到'+label+'的相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或分類試試</div></div>';
     return;
   }
   badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
-  var html='<div class="count-row">共 '+d.total+' 筆符合「'+esc(kw)+'」的 Q&A</div>';
+  var label=kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':'');
+  var html='<div class="count-row">共 '+d.total+' 筆符合'+label+'的 Q&A</div>';
   d.results.forEach(function(r){
     var cats=(r.category||'').split(/[、,，]/).filter(function(c){return c.trim()});
     var catHtml=cats.slice(0,3).map(function(c){return '<span class="tag tag-cat">'+esc(c.trim())+'</span>'}).join('');
@@ -399,7 +401,18 @@ fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(func
 }).catch(function(){});
 function setCat(el,c){
   document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
-  if(catFilter===c){catFilter='';search();}else{catFilter=c;el.classList.add('active');search();}
+  if(catFilter===c){
+    catFilter='';
+  }else{
+    catFilter=c;
+    el.classList.add('active');
+    /* 點分類時重設年份為全部，避免雙重篩選無資料 */
+    yr='';
+    document.querySelectorAll('.yr-btn').forEach(function(b){b.classList.remove('active')});
+    document.querySelector('.yr-btn').classList.add('active');
+    document.getElementById('scopeTxt').textContent='查詢範圍：全部年份';
+  }
+  search();
 }
 </script></body></html>'''
 
