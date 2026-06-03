@@ -247,7 +247,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .card{background:#fff;border:.5px solid #e0e0e0;border-radius:10px;padding:13px 15px}
 .card:hover{border-color:#b0bec5}
 .q-row{display:flex;gap:8px;margin-bottom:8px}
-.q-icon{width:22px;height:22px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#2e7d32;flex-shrink:0;margin-top:1px;font-weight:500}
+.q-icon{min-width:28px;height:22px;padding:0 4px;background:#e8f5e9;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#2e7d32;flex-shrink:0;margin-top:1px;font-weight:600}
+.pager{display:flex;gap:6px;justify-content:center;padding:16px 0 8px;flex-wrap:wrap}
+.pg-btn{padding:6px 12px;border:.5px solid #ddd;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#555}
+.pg-btn:hover{border-color:#00b900;color:#00b900}
+.pg-cur{background:#00b900;color:#fff;border-color:#00b900;font-weight:600;cursor:default}
 .q-txt{font-size:13px;font-weight:500;color:#333;line-height:1.55;flex:1}
 .card-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
 .tag{font-size:10px;padding:2px 8px;border-radius:99px}
@@ -332,7 +336,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var catFilter='',browseMode=false,browseYr='';
+var catFilter='',browseMode=false,browseYr='',currentPage=1;
 
 /* ── 年份勾選 ── */
 function getCheckedYears(){
@@ -397,14 +401,15 @@ function search(){
   if(kw||catFilter)exitBrowse();
   _doSearch();
 }
-function _doSearch(){
+function _doSearch(page){
+  currentPage=page||1;
   var kw=document.getElementById('kw').value.trim();
   var years=browseMode?[browseYr]:getCheckedYears();
   if(!kw&&!catFilter&&!browseMode)return;
   document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
   document.getElementById('cntBadge').style.display='none';
   fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({keyword:kw,years:years,category:catFilter})})
+    body:JSON.stringify({keyword:kw,years:years,category:catFilter,page:currentPage})})
   .then(function(r){return r.json()}).then(function(d){renderResults(d,kw)})
   .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
 }
@@ -419,17 +424,36 @@ function renderResults(d,kw){
   }
   badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
   var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':''));
-  var html='<div class="count-row">共 '+d.total+' 筆'+(label?'符合 '+label+' 的':'')+'Q&A</div>';
-  d.results.forEach(function(r){
+  var total=d.total,page=d.page||1,totalPages=d.total_pages||1,pageSize=d.page_size||50;
+  var startNum=(page-1)*pageSize+1,endNum=Math.min(page*pageSize,total);
+  var cntTxt='共 '+total+' 筆'+(label?'符合 '+label+' 的':'')+'Q&A';
+  if(total>pageSize)cntTxt+='，第 '+page+'/'+totalPages+' 頁（'+startNum+'～'+endNum+' 筆）';
+  var html='<div class="count-row">'+cntTxt+'</div>';
+  d.results.forEach(function(r,idx){
     var cats=(r.category||'').split(/[、,，]/).filter(function(c){return c.trim()});
     var catHtml=cats.slice(0,3).map(function(c){return '<span class="tag tag-cat">'+esc(c.trim())+'</span>'}).join('');
+    // 去掉原始 Q\d+： 前綴，改用連續編號
+    var qBody=(r.q_text||'').replace(/^Q\d+[：:]\s*/,'');
     html+='<div class="card">'
-      +'<div class="q-row"><div class="q-icon">Q</div><div class="q-txt">'+hilite(esc(r.q_text||''),kw)+'</div></div>'
+      +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div><div class="q-txt">'+hilite(esc(qBody),kw)+'</div></div>'
       +'<div class="card-tags">'+catHtml+'<span class="tag tag-yr">'+esc(r.year||'')+'</span></div>'
       +'<div class="a-lbl">回答</div>'
       +'<div class="a-txt">'+hilite(esc(r.a_text||''),kw)+'</div>'
       +'</div>';
   });
+  // 分頁列
+  if(totalPages>1){
+    html+='<div class="pager">';
+    if(page>1)html+='<button class="pg-btn" onclick="_doSearch('+( page-1)+')">&#8592; 上一頁</button>';
+    // 頁碼最多顯示7個
+    var start=Math.max(1,page-3),end=Math.min(totalPages,page+3);
+    for(var p=start;p<=end;p++){
+      if(p===page)html+='<button class="pg-btn pg-cur">'+p+'</button>';
+      else html+='<button class="pg-btn" onclick="_doSearch('+p+')">'+p+'</button>';
+    }
+    if(page<totalPages)html+='<button class="pg-btn" onclick="_doSearch('+(page+1)+')">下一頁 &#8594;</button>';
+    html+='</div>';
+  }
   document.getElementById('results').innerHTML=html;
 }
 fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
@@ -475,12 +499,20 @@ def qa_categories_summary():
     try:
         rows = supabase.table("qa_items").select("category").execute().data
         from collections import Counter
-        counter = Counter()
+        # 先收集所有不重複的分類名稱（精確 split）
+        all_cats = Counter()
         for r in rows:
             for c in re.split(r"[、,，]", r.get("category") or ""):
                 c = c.strip()
                 if c:
-                    counter[c] += 1
+                    all_cats[c] += 1
+        # 用 ilike 子字串比對重新計數，與搜尋邏輯一致
+        # （例如「操作」可命中「裝置操作與檢測」）
+        counter = Counter()
+        for cat_name in all_cats:
+            for r in rows:
+                if cat_name in (r.get("category") or ""):
+                    counter[cat_name] += 1
         result = [{"cat": k, "cnt": v} for k, v in counter.most_common(10)]
         return jsonify(result)
     except Exception as e:
@@ -499,8 +531,10 @@ def qa_search():
     keyword = (data.get("keyword") or "").strip()
     years = data.get("years", [])  # list of year strings; empty = all years
     category = data.get("category", "")
+    page = int(data.get("page", 1))
+    page_size = 50
     if not keyword and not category and not years:
-        return jsonify({"results": [], "total": 0})
+        return jsonify({"results": [], "total": 0, "page": 1, "total_pages": 0})
     try:
         query = supabase.table("qa_items").select("*")
         if keyword:
@@ -511,7 +545,12 @@ def qa_search():
         if category:
             query = query.ilike("category", "%" + category + "%")
         rows = query.order("id").execute().data
-        return jsonify({"results": rows[:50], "total": len(rows)})
+        total = len(rows)
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+        return jsonify({"results": rows[start:start+page_size], "total": total,
+                        "page": page, "total_pages": total_pages, "page_size": page_size})
     except Exception as e:
         print("搜尋失敗：", e, flush=True)
         return jsonify({"results": [], "total": 0, "error": str(e)})
