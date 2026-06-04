@@ -280,13 +280,17 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 /* ── 編輯模式 topbar 指示 ── */
 .edit-badge{font-size:10px;background:rgba(255,255,0,.25);color:#fff;padding:2px 8px;border-radius:99px;border:.5px solid rgba(255,255,255,.4)}
 /* ── Tag Popover ── */
-#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:10px;z-index:999;display:none;min-width:180px}
+#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:12px;z-index:999;display:none;width:360px;max-width:90vw}
 #tagPopover .pop-title{font-size:10px;color:#aaa;margin-bottom:7px;letter-spacing:.5px}
 #tagPopover .pop-tags{display:flex;flex-wrap:wrap;gap:5px}
 #tagPopover .pop-tag{font-size:11px;padding:4px 10px;border-radius:99px;background:#f0fff0;color:#2e7d32;border:.5px solid #c8e6c9;cursor:pointer;transition:background .12s,transform .12s}
 #tagPopover .pop-tag:hover{background:#c8e6c9;transform:scale(1.06)}
 </style></head><body>
-<div class="topbar">📋 HyRead LINE Q&A 查詢系統
+<div class="topbar"><span onclick="clearSearch()" style="cursor:pointer;user-select:none" title="回首頁">📋 HyRead LINE Q&A 查詢系統</span>
+  <button onclick="clearSearch()" title="回首頁"
+    style="margin-left:10px;background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.35);color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">
+    🏠 首頁
+  </button>
   <span id="editBadge" class="edit-badge" style="display:none">✏️ 標籤編輯模式</span>
   <button id="editToggle" onclick="toggleEditMode()"
     style="margin-left:auto;background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.4);color:#fff;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">
@@ -406,7 +410,9 @@ function openPopover(itemId, btnEl){
   var rect=btnEl.getBoundingClientRect();
   pop.style.display='block';
   pop.style.top=(rect.bottom+6)+'px';
-  pop.style.left=Math.min(rect.left,window.innerWidth-200)+'px';
+  var popW=360;
+  var left=Math.min(rect.left, window.innerWidth-popW-12);
+  pop.style.left=Math.max(8,left)+'px';
 }
 function closePopover(){
   document.getElementById('tagPopover').style.display='none';
