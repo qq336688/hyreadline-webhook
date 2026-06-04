@@ -267,6 +267,18 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .cat-card{background:#fff;border:.5px solid #e0e0e0;border-radius:8px;padding:10px 13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#444}
 .cat-card:hover{border-color:#00b900;color:#1b5e20;background:#f0fff0}
 .cat-card-cnt{font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:99px;padding:2px 8px;flex-shrink:0}
+/* ── 首頁 icon 卡片 ── */
+.home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:580px}
+.home-icon-card{background:#fff;border:.5px solid #e0e0e0;border-radius:12px;padding:18px 10px 14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;transition:box-shadow .15s,border-color .15s}
+.home-icon-card:hover{border-color:#00b900;box-shadow:0 2px 12px rgba(0,185,0,.12)}
+.home-icon-card .hic-icon{font-size:28px;line-height:1}
+.home-icon-card .hic-name{font-size:12px;font-weight:500;color:#333;text-align:center}
+.home-icon-card .hic-cnt{font-size:10px;color:#aaa}
+/* 次分類文字按鈕區 */
+.sub-tag-row{display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:580px}
+.sub-tag-btn{padding:6px 13px;background:#f5f5f5;border:.5px solid #e0e0e0;border-radius:99px;font-size:11px;color:#555;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .12s,border-color .12s}
+.sub-tag-btn:hover{background:#e8f5e9;border-color:#00b900;color:#1b5e20}
+.sub-tag-btn .stb-cnt{font-size:10px;color:#aaa}
 .loading{color:#aaa;font-size:13px;text-align:center;padding:40px}
 .err{color:#e53935;font-size:13px;text-align:center;padding:20px}
 /* ── 時間／發話者弱化 ── */
@@ -348,18 +360,26 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     </div>
     <div class="results" id="results">
       <div class="empty" id="homeState">
-        <div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字開始搜尋</div>
-        <div class="chips">
-          <div class="chip" onclick="fill(this.textContent)">召回</div>
-          <div class="chip" onclick="fill(this.textContent)">保固</div>
-          <div class="chip" onclick="fill(this.textContent)">APP無法登入</div>
-          <div class="chip" onclick="fill(this.textContent)">退款</div>
-          <div class="chip" onclick="fill(this.textContent)">帳號</div>
-          <div class="chip" onclick="fill(this.textContent)">維修</div>
+        <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:16px">選擇分類快速瀏覽，或直接輸入關鍵字搜尋</div>
+        <!-- 主分類 icon 卡片 -->
+        <div id="catBrowse" class="home-grid"></div>
+        <!-- 次分類文字按鈕 -->
+        <div style="width:100%;max-width:580px;margin-top:14px">
+          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">次分類</div>
+          <div id="catBrowseSub" class="sub-tag-row"></div>
         </div>
-        <div style="width:100%;max-width:640px;margin-top:20px;text-align:left">
-          <div style="font-size:11px;color:#aaa;letter-spacing:.5px;margin-bottom:10px;padding-left:2px">📂 全部問題分類</div>
-          <div id="catBrowse" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div>
+        <!-- 快速關鍵字 -->
+        <div style="width:100%;max-width:580px;margin-top:16px;border-top:.5px solid #eee;padding-top:14px">
+          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">快速搜尋</div>
+          <div class="chips" style="justify-content:flex-start">
+            <div class="chip" onclick="fill(this.textContent)">召回</div>
+            <div class="chip" onclick="fill(this.textContent)">保固</div>
+            <div class="chip" onclick="fill(this.textContent)">APP無法登入</div>
+            <div class="chip" onclick="fill(this.textContent)">退款</div>
+            <div class="chip" onclick="fill(this.textContent)">帳號</div>
+            <div class="chip" onclick="fill(this.textContent)">維修</div>
+          </div>
         </div>
       </div>
     </div>
@@ -613,8 +633,20 @@ function handleDelTag(el){
 function handlePopTag(el){
   addTag(parseInt(el.dataset.id), el.dataset.tag);
 }
+/* 分類 icon 對應表（HTML entities，避免編碼截斷） */
+var CAT_ICONS={
+  '維修':'&#x1F527;','保固':'&#x1F6E1;','召回':'&#x1F4E2;',
+  '操作':'&#x2699;','APP':'&#x1F4F1;','帳號':'&#x1F464;',
+  '物流':'&#x1F4E6;','客服流程':'&#x1F4AC;',
+  '軟體':'&#x1F4BB;','設備維修':'&#x1F5A5;',
+  '換貨':'&#x1F504;','裝置維修':'&#x1F4D6;',
+  'Kiosk設備管理':'&#x1F3E7;','故障排除':'&#x1F50D;',
+  '銷售':'&#x1F4CA;','產品資訊':'&#x1F4CB;'
+};
+function catIcon(name){return CAT_ICONS[name]||'&#x1F3F7;';}
+
 fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
-  /* 側欄：只顯示主分類＋次分類（不顯示「未定義」） */
+  /* 側欄：主分類綠點、次分類藍點，不顯示「未定義」 */
   var sideHtml='';
   cats.filter(function(c){return c.type!=='未定義'&&c.cnt>0}).forEach(function(c){
     var dotColor=c.type==='主分類'?'#00b900':'#1565c0';
@@ -623,33 +655,34 @@ fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(func
       +'<span class="cat-cnt">'+c.cnt+'</span></div>';
   });
   document.getElementById('catList').innerHTML=sideHtml||'<div style="font-size:11px;color:#ccc;padding:4px 8px">尚無分類</div>';
-  /* 首頁：主分類大卡 + 次分類小卡（分兩區） */
+
+  /* 首頁主分類：icon 卡片 3 欄 */
+  var primary=cats.filter(function(c){return c.type==='主分類'&&c.cnt>0});
+  var secondary=cats.filter(function(c){return c.type==='次分類'&&c.cnt>0});
   var browse=document.getElementById('catBrowse');
   if(browse){
-    var primary=cats.filter(function(c){return c.type==='主分類'&&c.cnt>0});
-    var secondary=cats.filter(function(c){return c.type==='次分類'&&c.cnt>0});
     var bHtml='';
-    if(primary.length){
-      bHtml+='<div style="font-size:10px;color:#aaa;letter-spacing:.5px;margin-bottom:6px;padding-left:2px">主分類</div>';
-      bHtml+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px">';
-      primary.forEach(function(c){
-        bHtml+='<div class="cat-card" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)">'
-          +'<span>'+esc(c.cat)+'</span>'
-          +'<span class="cat-card-cnt">'+c.cnt+'</span></div>';
-      });
-      bHtml+='</div>';
-    }
-    if(secondary.length){
-      bHtml+='<div style="font-size:10px;color:#aaa;letter-spacing:.5px;margin-bottom:6px;padding-left:2px">次分類</div>';
-      bHtml+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">';
-      secondary.forEach(function(c){
-        bHtml+='<div class="cat-card" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)" style="font-size:11px;padding:7px 10px">'
-          +'<span>'+esc(c.cat)+'</span>'
-          +'<span class="cat-card-cnt" style="font-size:10px">'+c.cnt+'</span></div>';
-      });
-      bHtml+='</div>';
-    }
-    browse.innerHTML=bHtml||'<div style="color:#ccc;font-size:12px">尚無分類資料</div>';
+    primary.forEach(function(c){
+      bHtml+='<div class="home-icon-card" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)">'
+        +'<div class="hic-icon">'+catIcon(c.cat)+'</div>'
+        +'<div class="hic-name">'+esc(c.cat)+'</div>'
+        +'<div class="hic-cnt">'+c.cnt+' 筆</div>'
+        +'</div>';
+    });
+    browse.innerHTML=bHtml||'<div style="color:#ccc;font-size:12px;grid-column:1/-1">尚無分類資料</div>';
+  }
+
+  /* 首頁次分類：文字按鈕列 */
+  var sub=document.getElementById('catBrowseSub');
+  if(sub){
+    var sHtml='';
+    secondary.forEach(function(c){
+      sHtml+='<div class="sub-tag-btn" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)">'
+        +catIcon(c.cat)+' '+esc(c.cat)
+        +'<span class="stb-cnt">'+c.cnt+'</span></div>';
+    });
+    sub.innerHTML=sHtml||'';
+    sub.parentElement.style.display=secondary.length?'':'none';
   }
 }).catch(function(){});
 function handleCatClick(el){setCat(el,el.dataset.cat);}
@@ -1728,38 +1761,26 @@ def analyze_messages(title, messages):
         "2. 相同或相似的問題合併成一個Q\n"
         "3. 問題內容後面用括號標明時間與提問者，格式：（YYYY/MM/DD HH:MM 姓名）\n"
         "4. 回答內容後面用括號標明時間與回答者，格式：（YYYY/MM/DD HH:MM 姓名）\n"
-        "5. 若有多人回答，用分號「；」連接在同一個A裡，每段回答後各自加括號\n"
-        "6. 如果有附圖或附檔，在該Q或A下方另起一行標示「附檔：[說明] [連結]」\n"
-        "7. 沒有明確問答關係的訊息，獨立列在【一般訊息】區塊\n"
-        "8. 請用繁體中文輸出\n\n"
-        "【第二部分】問題分類建議\n"
-        "根據這批對話內容，在最後輸出分類標籤：\n"
-        "【分類標籤】維修、保固、操作（依實際內容，可自行新增類別）\n\n"
-        "對話記錄：\n" + conversation[:30000] + "\n\n"
-        "輸出格式：\n"
-        "【" + title + " Q&A整理】\n\n"
-        "Q1：[問題]（YYYY/MM/DD HH:MM 姓名）\n"
-        "A：[回答]（YYYY/MM/DD HH:MM 姓名）\n\n"
-        "---\n\n【一般訊息】\n[時間] 發話者：內容\n\n---\n\n"
-        "【分類標籤】類別1、類別2\n"
+        "5. 若有多人回答，用分號「；」分隔\n"
+        "6. 輸出繁體中文\n"
+        "7. 若訊息為圖片/貼圖/無意義內容，可忽略\n\n"
+        "請輸出 JSON 格式（不需要 markdown code block）：\n"
+        "{\"qa_list\": [{\"q_text\": \"Q1：...\", \"a_text\": \"A：...\", \"category\": \"維修\"}]}\n"
     )
+    return prompt
 
-    # 503 自動重試（最多 5 次，間隔 15/30/60/120 秒）
-    delays = [15, 30, 60, 120, 120]
-    for attempt in range(len(delays)):
-        try:
-            response = requests.post(
-                "https://api.line.me/v2/bot/message/reply",
-                headers={"Authorization": "Bearer " + CHANNEL_ACCESS_TOKEN},
-                json={"replyToken": reply_token, "messages": messages}
-            )
-            if response.status_code != 503:
-                break
-            if attempt < len(delays) - 1:
-                time.sleep(delays[attempt])
-        except Exception:
-            if attempt < len(delays) - 1:
-                time.sleep(delays[attempt])
+
+def call_gemini_line(prompt):
+    response = gemini.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(response_mime_type="application/json")
+    )
+    raw = response.text.strip()
+    raw = re.sub(r"^```json\s*", "", raw)
+    raw = re.sub(r"```\s*$", "", raw)
+    return json.loads(raw)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
