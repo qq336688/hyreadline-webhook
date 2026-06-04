@@ -645,22 +645,14 @@ function setCat(el,c){
 @require_qa
 def qa_categories_summary():
     try:
-        rows = supabase.table("qa_items").select("category").execute().data
+        rows = supabase.table("qa_items").select("tags").execute().data
         from collections import Counter
-        # 先收集所有不重複的分類名稱（精確 split）
-        all_cats = Counter()
-        for r in rows:
-            for c in re.split(r"[、,，]", r.get("category") or ""):
-                c = c.strip()
-                if c:
-                    all_cats[c] += 1
-        # 用 ilike 子字串比對重新計數，與搜尋邏輯一致
-        # （例如「操作」可命中「裝置操作與檢測」）
         counter = Counter()
-        for cat_name in all_cats:
-            for r in rows:
-                if cat_name in (r.get("category") or ""):
-                    counter[cat_name] += 1
+        for r in rows:
+            for t in (r.get("tags") or []):
+                t = t.strip()
+                if t:
+                    counter[t] += 1
         result = [{"cat": k, "cnt": v} for k, v in counter.most_common(10)]
         return jsonify(result)
     except Exception as e:
@@ -691,7 +683,7 @@ def qa_search():
         if years:
             query = query.in_("year", years)
         if category:
-            query = query.ilike("category", "%" + category + "%")
+            query = query.contains("tags", [category])
         rows = query.order("id").execute().data
         total = len(rows)
         total_pages = max(1, (total + page_size - 1) // page_size)
