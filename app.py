@@ -367,8 +367,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 </div>
 <script>
 var catFilter='',browseMode=false,browseYr='',currentPage=1,editMode=false;
-/* 系統固定主分類標籤 */
-var PRESET_TAGS=['維修','保固','召回','操作','APP','帳號','物流','客服流程','軟體','設備維修','換貨','裝置維修'];
+/* 從後端載入的標籤定義 [{name, type, sort_order}, ...] */
+var PRESET_TAGS=[];
+fetch('/qa/api/tag_definitions').then(function(r){return r.json()}).then(function(rows){
+  PRESET_TAGS=rows.map(function(r){return r.name});
+}).catch(function(){});
 /* 各卡片目前的 tags 暫存 {id: [tags]} */
 var cardTags={};
 /* 目前 Popover 對應的 item id */
@@ -611,35 +614,55 @@ function handlePopTag(el){
   addTag(parseInt(el.dataset.id), el.dataset.tag);
 }
 fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
-  var html='';
-  cats.forEach(function(c){
-    html+='<div class="cat-item" onclick="setCat(this,\\''+esc(c.cat)+'\\')">\'
-      +'<div class="cat-dot" style="background:#1565c0"></div>'+esc(c.cat)
+  /* 側欄：只顯示主分類＋次分類（不顯示「未定義」） */
+  var sideHtml='';
+  cats.filter(function(c){return c.type!=='未定義'&&c.cnt>0}).forEach(function(c){
+    var dotColor=c.type==='主分類'?'#00b900':'#1565c0';
+    sideHtml+='<div class="cat-item" data-cat="'+esc(c.cat)+'" onclick="handleCatClick(this)">'
+      +'<div class="cat-dot" style="background:'+dotColor+'"></div>'+esc(c.cat)
       +'<span class="cat-cnt">'+c.cnt+'</span></div>';
   });
-  document.getElementById('catList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px 8px">尚無分類</div>';
-  /* 首頁分類瀏覽卡片 */
+  document.getElementById('catList').innerHTML=sideHtml||'<div style="font-size:11px;color:#ccc;padding:4px 8px">尚無分類</div>';
+  /* 首頁：主分類大卡 + 次分類小卡（分兩區） */
   var browse=document.getElementById('catBrowse');
   if(browse){
+    var primary=cats.filter(function(c){return c.type==='主分類'&&c.cnt>0});
+    var secondary=cats.filter(function(c){return c.type==='次分類'&&c.cnt>0});
     var bHtml='';
-    cats.forEach(function(c){
-      bHtml+='<div class="cat-card" onclick="fill(\\''+esc(c.cat)+'\\')">'
-        +'<span>'+esc(c.cat)+'</span>'
-        +'<span class="cat-card-cnt">'+c.cnt+'</span>'
-        +'</div>';
-    });
+    if(primary.length){
+      bHtml+='<div style="font-size:10px;color:#aaa;letter-spacing:.5px;margin-bottom:6px;padding-left:2px">主分類</div>';
+      bHtml+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px">';
+      primary.forEach(function(c){
+        bHtml+='<div class="cat-card" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)">'
+          +'<span>'+esc(c.cat)+'</span>'
+          +'<span class="cat-card-cnt">'+c.cnt+'</span></div>';
+      });
+      bHtml+='</div>';
+    }
+    if(secondary.length){
+      bHtml+='<div style="font-size:10px;color:#aaa;letter-spacing:.5px;margin-bottom:6px;padding-left:2px">次分類</div>';
+      bHtml+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">';
+      secondary.forEach(function(c){
+        bHtml+='<div class="cat-card" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)" style="font-size:11px;padding:7px 10px">'
+          +'<span>'+esc(c.cat)+'</span>'
+          +'<span class="cat-card-cnt" style="font-size:10px">'+c.cnt+'</span></div>';
+      });
+      bHtml+='</div>';
+    }
     browse.innerHTML=bHtml||'<div style="color:#ccc;font-size:12px">尚無分類資料</div>';
   }
 }).catch(function(){});
+function handleCatClick(el){setCat(el,el.dataset.cat);}
+function handleCatClick2(el){
+  exitBrowse();catFilter=el.dataset.cat;
+  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
+  _doSearch();
+}
 function setCat(el,c){
   exitBrowse();
   document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
-  if(catFilter===c){
-    catFilter='';
-  }else{
-    catFilter=c;
-    el.classList.add('active');
-  }
+  if(catFilter===c){catFilter='';}
+  else{catFilter=c;el.classList.add('active');}
   _doSearch();
 }
 </script></body></html>'''
@@ -647,19 +670,41 @@ function setCat(el,c){
 # ──────────────────────────────────────────────
 # Q&A API
 # ──────────────────────────────────────────────
+@app.route("/qa/api/tag_definitions")
+@require_qa
+def qa_tag_definitions():
+    """回傳 tag_definitions 完整清單（供查詢頁 Popover 與首頁分區使用）"""
+    try:
+        rows = supabase.table("tag_definitions").select("*").order("sort_order").execute().data or []
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify([])
+
 @app.route("/qa/api/categories_summary")
 @require_qa
 def qa_categories_summary():
+    """回傳各標籤計數（從 qa_items.tags），同時附帶 tag_definitions 的 type 資訊"""
     try:
-        rows = supabase.table("qa_items").select("tags").execute().data
         from collections import Counter
+        # 1. 從 qa_items 計算每個 tag 的出現次數
+        rows = supabase.table("qa_items").select("tags").execute().data
         counter = Counter()
         for r in rows:
             for t in (r.get("tags") or []):
                 t = t.strip()
                 if t:
                     counter[t] += 1
-        result = [{"cat": k, "cnt": v} for k, v in counter.most_common(10)]
+        # 2. 讀取 tag_definitions，以定義的順序和 type 輸出
+        tag_defs = supabase.table("tag_definitions").select("*").order("sort_order").execute().data or []
+        defined_names = {td["name"] for td in tag_defs}
+        result = []
+        for td in tag_defs:
+            result.append({"cat": td["name"], "cnt": counter.get(td["name"], 0),
+                           "type": td["type"], "sort_order": td["sort_order"]})
+        # 3. 未定義的 tag（資料中有但定義表沒有），附加到末尾供參考
+        for name, cnt in counter.most_common():
+            if name not in defined_names:
+                result.append({"cat": name, "cnt": cnt, "type": "未定義", "sort_order": 999})
         return jsonify(result)
     except Exception as e:
         return jsonify([])
@@ -791,6 +836,7 @@ tr:hover td{background:#fafafa}
   <div class="tab" onclick="showTab(this,'stats')">📊 分析總覽</div>
   <div class="tab" onclick="showTab(this,'token')">⚡ Token 用量</div>
   <div class="tab" onclick="showTab(this,'users')">👤 帳號管理</div>
+  <div class="tab" onclick="showTab(this,'tagmgr')">🏷️ 標籤管理</div>
 </div>
 
 <!-- 過濾詞句 -->
@@ -888,6 +934,31 @@ tr:hover td{background:#fafafa}
   </div>
 </div>
 
+<!-- 標籤管理 -->
+<div class="panel" id="tab-tagmgr">
+  <div class="card">
+    <div class="card-title">➕ 新增標籤</div>
+    <div class="add-row">
+      <input type="text" id="newTagName" placeholder="標籤名稱（例如：Kiosk設備管理）" style="width:220px">
+      <select id="newTagType" style="width:100px">
+        <option value="主分類">主分類</option>
+        <option value="次分類" selected>次分類</option>
+      </select>
+      <button class="btn-green" onclick="addTagDef()">新增</button>
+    </div>
+    <div id="tagDefMsg" class="msg"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">🏷️ 標籤定義清單
+      <span style="font-size:11px;color:#aaa;font-weight:400;margin-left:8px">主分類顯示於首頁大卡片，次分類顯示於次要區塊</span>
+    </div>
+    <table>
+      <thead><tr><th style="width:40px">排序</th><th>標籤名稱</th><th style="width:80px">類型</th><th style="width:80px">操作</th></tr></thead>
+      <tbody id="tagDefTable"><tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- Token 用量 -->
 <div class="panel" id="tab-token">
   <div id="tokenWarn"></div>
@@ -913,6 +984,7 @@ function showTab(el,name){
   if(name==='stats')loadStats();
   if(name==='token')loadTokens();
   if(name==='users')loadUsers();
+  if(name==='tagmgr')loadTagDefs();
 }
 
 /* ── 過濾詞句 ── */
@@ -1148,9 +1220,116 @@ function escQ(t){return(t||'').replace(/\'/g,'\\\'').replace(/"/g,'&quot;')}
 function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
 function showMsg(id,msg,isErr){var el=document.getElementById(id);el.className='msg'+(isErr?' err':'');el.textContent=msg;setTimeout(function(){el.textContent=''},3000)}
 
+/* ── 標籤定義管理 ── */
+function loadTagDefs(){
+  fetch('/admin/api/tag_definitions').then(function(r){return r.json()}).then(function(rows){
+    var html='';
+    rows.forEach(function(r){
+      var typeColor=r.type==='主分類'?'#2e7d32':'#1565c0';
+      var typeBg=r.type==='主分類'?'#e8f5e9':'#e3f2fd';
+      html+='<tr>'
+        +'<td style="color:#aaa;font-size:11px">'+r.sort_order+'</td>'
+        +'<td style="font-weight:500">'+esc(r.name)+'</td>'
+        +'<td><span style="background:'+typeBg+';color:'+typeColor+';font-size:11px;padding:2px 8px;border-radius:99px;cursor:pointer" onclick="toggleTagType('+r.id+',this)">'+esc(r.type)+'</span></td>'
+        +'<td><button class="btn-outline" onclick="delTagDef('+r.id+',this)">刪除</button></td>'
+        +'</tr>';
+    });
+    document.getElementById('tagDefTable').innerHTML=html||'<tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">尚無標籤定義</td></tr>';
+  });
+}
+function addTagDef(){
+  var name=document.getElementById('newTagName').value.trim();
+  var type=document.getElementById('newTagType').value;
+  if(!name){showMsg('tagDefMsg','請輸入標籤名稱',true);return;}
+  fetch('/admin/api/tag_definitions',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name,type:type})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.error){showMsg('tagDefMsg',d.error,true);}
+    else{document.getElementById('newTagName').value='';showMsg('tagDefMsg','新增成功！',false);loadTagDefs();}
+  });
+}
+function toggleTagType(id, el){
+  var cur=el.textContent.trim();
+  var next=cur==='主分類'?'次分類':'主分類';
+  fetch('/admin/api/tag_definitions/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type:next})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.ok)loadTagDefs();
+    else alert('更新失敗：'+d.error);
+  });
+}
+function delTagDef(id, btn){
+  if(!confirm('確定刪除此標籤定義？（不影響已存在的 qa_items.tags 資料）'))return;
+  fetch('/admin/api/tag_definitions/'+id,{method:'DELETE'})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.ok)loadTagDefs();
+    else alert('刪除失敗：'+d.error);
+  });
+}
+
 /* 預設載入 */
 loadWords();
 </script></body></html>'''
+
+# ──────────────────────────────────────────────
+# 管理 API — 標籤定義
+# ──────────────────────────────────────────────
+@app.route("/admin/api/tag_definitions", methods=["GET"])
+@require_admin
+def admin_get_tag_defs():
+    rows = supabase.table("tag_definitions").select("*").order("sort_order").execute().data or []
+    return jsonify(rows)
+
+@app.route("/admin/api/tag_definitions", methods=["POST"])
+@require_admin
+def admin_add_tag_def():
+    data = request.get_json()
+    name = (data.get("name") or "").strip()
+    typ  = data.get("type", "次分類")
+    if not name:
+        return jsonify({"error": "標籤名稱不可為空"}), 400
+    if typ not in ("主分類", "次分類"):
+        typ = "次分類"
+    try:
+        # sort_order = 現有最大值 + 1
+        existing = supabase.table("tag_definitions").select("sort_order").order("sort_order", desc=True).limit(1).execute().data
+        next_order = (existing[0]["sort_order"] + 1) if existing else 1
+        supabase.table("tag_definitions").insert({
+            "name": name, "type": typ,
+            "sort_order": next_order,
+            "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+        }).execute()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/admin/api/tag_definitions/<int:tag_id>", methods=["PATCH"])
+@require_admin
+def admin_update_tag_def(tag_id):
+    data = request.get_json()
+    update = {}
+    if "type" in data and data["type"] in ("主分類", "次分類"):
+        update["type"] = data["type"]
+    if "name" in data and data["name"].strip():
+        update["name"] = data["name"].strip()
+    if "sort_order" in data:
+        update["sort_order"] = int(data["sort_order"])
+    if not update:
+        return jsonify({"error": "no fields"}), 400
+    try:
+        supabase.table("tag_definitions").update(update).eq("id", tag_id).execute()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/admin/api/tag_definitions/<int:tag_id>", methods=["DELETE"])
+@require_admin
+def admin_delete_tag_def(tag_id):
+    try:
+        supabase.table("tag_definitions").delete().eq("id", tag_id).execute()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ──────────────────────────────────────────────
 # 管理 API — 帳號管理
