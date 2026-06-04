@@ -367,10 +367,10 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 </div>
 <script>
 var catFilter='',browseMode=false,browseYr='',currentPage=1,editMode=false;
-/* 從後端載入的標籤定義 [{name, type, sort_order}, ...] */
-var PRESET_TAGS=[];
+/* 從後端載入的標籤定義，備援為常用標籤 */
+var PRESET_TAGS=['維修','保固','召回','操作','APP','帳號','物流','客服流程','軟體','設備維修','換貨','裝置維修','Kiosk設備管理','故障排除'];
 fetch('/qa/api/tag_definitions').then(function(r){return r.json()}).then(function(rows){
-  PRESET_TAGS=rows.map(function(r){return r.name});
+  if(rows&&rows.length)PRESET_TAGS=rows.map(function(r){return r.name});
 }).catch(function(){});
 /* 各卡片目前的 tags 暫存 {id: [tags]} */
 var cardTags={};
@@ -694,17 +694,24 @@ def qa_categories_summary():
                 t = t.strip()
                 if t:
                     counter[t] += 1
-        # 2. 讀取 tag_definitions，以定義的順序和 type 輸出
-        tag_defs = supabase.table("tag_definitions").select("*").order("sort_order").execute().data or []
-        defined_names = {td["name"] for td in tag_defs}
-        result = []
-        for td in tag_defs:
-            result.append({"cat": td["name"], "cnt": counter.get(td["name"], 0),
-                           "type": td["type"], "sort_order": td["sort_order"]})
-        # 3. 未定義的 tag（資料中有但定義表沒有），附加到末尾供參考
-        for name, cnt in counter.most_common():
-            if name not in defined_names:
-                result.append({"cat": name, "cnt": cnt, "type": "未定義", "sort_order": 999})
+        # 2. 嘗試讀取 tag_definitions；若資料表不存在則降級輸出所有 tag
+        try:
+            tag_defs = supabase.table("tag_definitions").select("*").order("sort_order").execute().data or []
+        except Exception:
+            tag_defs = []
+        if tag_defs:
+            defined_names = {td["name"] for td in tag_defs}
+            result = []
+            for td in tag_defs:
+                result.append({"cat": td["name"], "cnt": counter.get(td["name"], 0),
+                               "type": td["type"], "sort_order": td["sort_order"]})
+            for name, cnt in counter.most_common():
+                if name not in defined_names:
+                    result.append({"cat": name, "cnt": cnt, "type": "未定義", "sort_order": 999})
+        else:
+            # tag_definitions 尚未建立，直接輸出前10個 tag
+            result = [{"cat": k, "cnt": v, "type": "主分類", "sort_order": i}
+                      for i, (k, v) in enumerate(counter.most_common(10), 1)]
         return jsonify(result)
     except Exception as e:
         return jsonify([])
@@ -1739,194 +1746,20 @@ def analyze_messages(title, messages):
 
     # 503 自動重試（最多 5 次，間隔 15/30/60/120 秒）
     delays = [15, 30, 60, 120, 120]
-    for attempt, delay in enumerate(delays, 1):
+    for attempt in range(len(delays)):
         try:
-            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-            break
-        except Exception as e:
-            err_str = str(e)
-            if "503" in err_str or "UNAVAILABLE" in err_str:
-                if attempt <= len(delays) - 1:
-                    print(f"Gemini 503，第 {attempt} 次重試，等待 {delay} 秒...", flush=True)
-                    time.sleep(delay)
-                    continue
-            raise  # 非 503 或已達上限，直接往上拋出
-    usage = response.usage_metadata
-    token_info = {
-        "input":  getattr(usage, "prompt_token_count", 0),
-        "output": getattr(usage, "candidates_token_count", 0),
-        "total":  getattr(usage, "total_token_count", 0)
-    }
-    txt = response.text or ""
-    categories = ""
-    if "【分類標籤】" in txt:
-        try:
-            categories = txt.split("【分類標籤】")[-1].strip().split("\n")[0].strip()
-        except:
-            pass
-    return txt, token_info, categories
-
-# ──────────────────────────────────────────────
-# 背景執行：自動跑完整年所有批次
-# ──────────────────────────────────────────────
-def process_year_background(year, group_id):
-    SIZE = 50
-    # 從上次失敗的批次繼續（查已存入的最大批次）
-    try:
-        done = supabase.table("qa_results").select("batch_num")\
-            .eq("year", year).order("batch_num", desc=True).limit(1).execute()
-        last_done = done.data[0]["batch_num"] if done.data else 0
-    except:
-        last_done = 0
-    offset = last_done * SIZE
-    batch_num = last_done + 1
-    if last_done > 0:
-        print("從第", batch_num, "批繼續（已完成前", last_done, "批）", flush=True)
-        line_bot_api.push_message(group_id, TextSendMessage(
-            text="📋 " + year + " 年從第 " + str(batch_num) + " 批繼續（已完成前 " + str(last_done) + " 批）"
-        ))
-    print("=== 背景開始：", year, "年 ===", flush=True)
-    while True:
-        try:
-            msgs = supabase.table("messages").select("*")\
-                .like("created_at", year + "%").order("id")\
-                .range(offset, offset + SIZE - 1).execute().data
-            if not msgs:
-                line_bot_api.push_message(group_id, TextSendMessage(
-                    text="🎉 " + year + " 年全部整理完成！共 " + str(batch_num-1) + " 批\n📊 " + WEB_URL))
+            response = requests.post(
+                "https://api.line.me/v2/bot/message/reply",
+                headers={"Authorization": "Bearer " + CHANNEL_ACCESS_TOKEN},
+                json={"replyToken": reply_token, "messages": messages}
+            )
+            if response.status_code != 503:
                 break
-            label = year + "年第" + str(batch_num) + "批"
-            qa_text, token_info, categories = analyze_messages(label, msgs)
-            save_token_log(label, token_info)
-            result_id = None
-            try:
-                r = supabase.table("qa_results").insert({
-                    "year": year, "batch_num": batch_num, "title": label,
-                    "content": qa_text,
-                    "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
-                    "start_row": offset+1, "end_row": offset+len(msgs),
-                    "total_msgs": len(msgs), "categories": categories
-                }).execute()
-                if r.data:
-                    result_id = r.data[0]["id"]
-            except Exception as e:
-                print("qa_results 儲存失敗：", e, flush=True)
-            parse_and_save_qa_items(qa_text, year, batch_num, result_id, categories)
-            offset += len(msgs)
-
-            # ── 檢查今日 token 用量 ──
-            today_tokens = get_today_tokens()
-            print("今日累積 tokens：", today_tokens, flush=True)
-            if today_tokens >= 800000:
-                line_bot_api.push_message(group_id, TextSendMessage(
-                    text="⚠️ Token 用量警告！\n"
-                    "今日已使用 " + str(today_tokens) + " tokens\n"
-                    "已達免費上限 80%，自動暫停分析。\n"
-                    "已完成前 " + str(batch_num) + " 批（" + str(offset) + " 筆）\n\n"
-                    "📊 查看用量：\nhttps://hyreadline-webhook.onrender.com/admin"
-                ))
-                print("Token 超過 80% 上限，暫停處理", flush=True)
-                break
-
-            if len(msgs) < SIZE:
-                line_bot_api.push_message(group_id, TextSendMessage(
-                    text="🎉 " + year + " 年全部整理完成！共 " + str(batch_num) + " 批，" + str(offset) + " 筆\n📊 " + WEB_URL))
-                break
-            batch_num += 1
-        except Exception as e:
-            print("背景錯誤：", e, flush=True)
-            line_bot_api.push_message(group_id, TextSendMessage(
-                text="⚠️ 第 " + str(batch_num) + " 批失敗：" + str(e) + "\n已完成前 " + str(batch_num-1) + " 批"))
-            break
-
-# ──────────────────────────────────────────────
-# Webhook
-# ──────────────────────────────────────────────
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    sig = request.headers["X-Line-Signature"]
-    body = request.get_data(as_text=True)
-    try:
-        handler.handle(body, sig)
-    except InvalidSignatureError:
-        abort(400)
-    return "OK"
-
-@handler.add(MessageEvent, message=TextMessage)
-def handle_text(event):
-    text   = event.message.text.strip()
-    sender = get_sender_name(event)
-
-    # 整理QA 年份（自動全年分批，背景執行）
-    if text.startswith("整理QA ") and len(text) == 9:
-        year = text.split(" ")[1]
-        if year.isdigit() and len(year) == 4:
-            group_id = event.source.group_id
-            try:
-                total = supabase.table("messages").select("id", count="exact")\
-                    .like("created_at", year + "%").execute().count or 0
-            except:
-                total = 0
-            batch_count = (total // 50) + (1 if total % 50 else 0)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(
-                text="⏳ 開始分析 " + year + " 年資料\n共 " + str(total) + " 筆，約需 " +
-                     str(batch_count) + " 批\n自動處理中，完成後通知您，請勿重複下指令"))
-            threading.Thread(target=process_year_background, args=(year, group_id), daemon=True).start()
-            return
-
-    # 整理QA（新增訊息）
-    if text == "整理QA":
-        line_bot_api.reply_message(event.reply_token,
-            TextSendMessage(text="⏳ 正在分析新增對話，需要約3~5分鐘，請稍候..."))
-        try:
-            last_date = get_setting("last_analyzed_date") or ""
-            msgs = supabase.table("messages").select("*")\
-                .gt("created_at", last_date).order("id").limit(50).execute().data
-            if not msgs:
-                line_bot_api.push_message(event.source.group_id,
-                    TextSendMessage(text="目前沒有新的對話需要整理！"))
-            else:
-                label = "新增對話（" + (last_date or "最早") + " 之後）"
-                qa_text, token_info, categories = analyze_messages(label, msgs)
-                save_token_log(label, token_info)
-                try:
-                    r2 = supabase.table("qa_results").insert({
-                        "year": "日常", "batch_num": 0, "title": label,
-                        "content": qa_text,
-                        "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
-                        "start_row": 0, "end_row": len(msgs),
-                        "total_msgs": len(msgs), "categories": categories
-                    }).execute()
-                    rid2 = r2.data[0]["id"] if r2.data else None
-                except Exception as e:
-                    print("qa_results 儲存失敗：", e, flush=True)
-                    rid2 = None
-                parse_and_save_qa_items(qa_text, "日常", 0, rid2, categories)
-                set_setting("last_analyzed_date", datetime.now().strftime("%Y/%m/%d %H:%M"))
-                line_bot_api.push_message(event.source.group_id, TextSendMessage(
-                    text="✅ 新增對話整理完成！共 " + str(len(msgs)) + " 則\n分類：" +
-                         (categories or "未分類") + "\n📊 " + WEB_URL))
-        except Exception as e:
-            print("錯誤：", e, flush=True)
-            line_bot_api.push_message(event.source.group_id,
-                TextSendMessage(text="整理失敗：" + str(e)))
-        return
-
-    save_message(text, sender)
-
-@handler.add(MessageEvent, message=ImageMessage)
-def handle_image(event):
-    sender = get_sender_name(event)
-    content = b"".join(line_bot_api.get_message_content(event.message.id).iter_content())
-    url = upload_file(content, "images/" + event.message.id + ".jpg", "image/jpeg")
-    save_message("[圖片]", sender, file_url=url, file_type="image")
-
-@handler.add(MessageEvent, message=FileMessage)
-def handle_file(event):
-    sender = get_sender_name(event)
-    content = b"".join(line_bot_api.get_message_content(event.message.id).iter_content())
-    url = upload_file(content, "files/" + event.message.id + "_" + event.message.file_name, "application/octet-stream")
-    save_message("[檔案：" + event.message.file_name + "]", sender, file_url=url, file_type="file")
+            if attempt < len(delays) - 1:
+                time.sleep(delays[attempt])
+        except Exception:
+            if attempt < len(delays) - 1:
+                time.sleep(delays[attempt])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
