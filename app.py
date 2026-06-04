@@ -269,10 +269,36 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .cat-card-cnt{font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:99px;padding:2px 8px;flex-shrink:0}
 .loading{color:#aaa;font-size:13px;text-align:center;padding:40px}
 .err{color:#e53935;font-size:13px;text-align:center;padding:20px}
+/* ── 時間／發話者弱化 ── */
+.meta-info{font-size:10px;color:#bbb;font-weight:400}
+/* ── 編輯模式標籤 ── */
+.tag-edit{display:inline-flex;align-items:center;gap:3px}
+.tag-del{cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;line-height:1;color:#666;transition:background .15s,transform .15s;border:none;padding:0;flex-shrink:0}
+.tag-del:hover{background:#e53935;color:#fff;transform:scale(1.2)}
+.tag-add{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 8px;border-radius:99px;border:1px dashed #aaa;color:#aaa;cursor:pointer;background:transparent;transition:border-color .15s,color .15s,transform .15s}
+.tag-add:hover{border-color:#00b900;color:#00b900;transform:scale(1.05)}
+/* ── 編輯模式 topbar 指示 ── */
+.edit-badge{font-size:10px;background:rgba(255,255,0,.25);color:#fff;padding:2px 8px;border-radius:99px;border:.5px solid rgba(255,255,255,.4)}
+/* ── Tag Popover ── */
+#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:10px;z-index:999;display:none;min-width:180px}
+#tagPopover .pop-title{font-size:10px;color:#aaa;margin-bottom:7px;letter-spacing:.5px}
+#tagPopover .pop-tags{display:flex;flex-wrap:wrap;gap:5px}
+#tagPopover .pop-tag{font-size:11px;padding:4px 10px;border-radius:99px;background:#f0fff0;color:#2e7d32;border:.5px solid #c8e6c9;cursor:pointer;transition:background .12s,transform .12s}
+#tagPopover .pop-tag:hover{background:#c8e6c9;transform:scale(1.06)}
 </style></head><body>
 <div class="topbar">📋 HyRead LINE Q&A 查詢系統
-  <a href="/admin">⚙ 管理介面</a>
+  <span id="editBadge" class="edit-badge" style="display:none">✏️ 標籤編輯模式</span>
+  <button id="editToggle" onclick="toggleEditMode()"
+    style="margin-left:auto;background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.4);color:#fff;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">
+    ✏️ 編輯標籤
+  </button>
+  <a href="/admin" style="margin-left:6px">⚙ 管理介面</a>
   <a href="/qa/logout" style="margin-left:6px">登出</a>
+</div>
+<!-- Tag Popover -->
+<div id="tagPopover">
+  <div class="pop-title">選擇標籤</div>
+  <div class="pop-tags" id="popTagList"></div>
 </div>
 <div class="wrap">
   <aside>
@@ -336,7 +362,62 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var catFilter='',browseMode=false,browseYr='',currentPage=1;
+var catFilter='',browseMode=false,browseYr='',currentPage=1,editMode=false;
+/* 系統固定主分類標籤 */
+var PRESET_TAGS=['維修','保固','召回','操作','APP','帳號','物流','客服流程','軟體','設備維修','換貨','裝置維修'];
+/* 各卡片目前的 tags 暫存 {id: [tags]} */
+var cardTags={};
+/* 目前 Popover 對應的 item id */
+var popTargetId=null;
+
+function toggleEditMode(){
+  editMode=!editMode;
+  var btn=document.getElementById('editToggle');
+  var badge=document.getElementById('editBadge');
+  if(editMode){
+    btn.textContent='✅ 結束編輯';
+    btn.style.background='rgba(255,200,0,.3)';
+    badge.style.display='';
+  }else{
+    btn.textContent='✏️ 編輯標籤';
+    btn.style.background='rgba(255,255,255,.15)';
+    badge.style.display='none';
+    closePopover();
+  }
+  /* 重新渲染目前結果 */
+  var lastD=window._lastSearchResult;
+  if(lastD)renderResults(lastD,window._lastKw||'');
+}
+
+/* ── Popover 控制 ── */
+function openPopover(itemId, btnEl){
+  popTargetId=itemId;
+  var pop=document.getElementById('tagPopover');
+  var existing=cardTags[itemId]||[];
+  /* 只顯示尚未加入的標籤 */
+  var available=PRESET_TAGS.filter(function(t){return existing.indexOf(t)<0});
+  if(!available.length){
+    pop.style.display='none';
+    return;
+  }
+  document.getElementById('popTagList').innerHTML=available.map(function(t){
+    return '<div class="pop-tag" onclick="addTag('+itemId+',\''+t+'\')">'+t+'</div>';
+  }).join('');
+  var rect=btnEl.getBoundingClientRect();
+  pop.style.display='block';
+  pop.style.top=(rect.bottom+6)+'px';
+  pop.style.left=Math.min(rect.left,window.innerWidth-200)+'px';
+}
+function closePopover(){
+  document.getElementById('tagPopover').style.display='none';
+  popTargetId=null;
+}
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('tagPopover');
+  if(pop.style.display==='block'&&!pop.contains(e.target)&&!e.target.classList.contains('tag-add')){
+    closePopover();
+  }
+});
 
 /* ── 年份勾選 ── */
 function getCheckedYears(){
@@ -413,7 +494,38 @@ function _doSearch(page){
   .then(function(r){return r.json()}).then(function(d){renderResults(d,kw)})
   .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
 }
+/* 將 Q/A 文字中的 （時間 姓名） 括號部分弱化為灰色小字 */
+function muteMetaInfo(text){
+  return esc(text).replace(/（([^）]{4,60})）/g,function(m,inner){
+    return '<span class="meta-info">（'+inner+'）</span>';
+  });
+}
+
+/* 渲染一張卡片的 tags 區塊 */
+function renderTagsHtml(itemId, tags){
+  var arr=tags||[];
+  cardTags[itemId]=arr.slice();
+  var html='<div class="card-tags" id="tags-'+itemId+'">';
+  if(editMode){
+    arr.forEach(function(t){
+      html+='<span class="tag tag-cat tag-edit">'
+        +esc(t)
+        +'<button class="tag-del" onclick="removeTag('+itemId+',\''+esc(t)+'\')" title="移除">✕</button>'
+        +'</span>';
+    });
+    html+='<button class="tag-add" onclick="openPopover('+itemId+',this)">＋ 新增標籤</button>';
+  }else{
+    arr.forEach(function(t){
+      html+='<span class="tag tag-cat">'+esc(t)+'</span>';
+    });
+  }
+  html+='</div>';
+  return html;
+}
+
 function renderResults(d,kw){
+  window._lastSearchResult=d;
+  window._lastKw=kw;
   var badge=document.getElementById('cntBadge');
   var browseLabel=browseYr+(browseYr==='日常'?'新增':' 年');
   if(!d.results||d.results.length===0){
@@ -430,22 +542,22 @@ function renderResults(d,kw){
   if(total>pageSize)cntTxt+='，第 '+page+'/'+totalPages+' 頁（'+startNum+'～'+endNum+' 筆）';
   var html='<div class="count-row">'+cntTxt+'</div>';
   d.results.forEach(function(r,idx){
-    var cats=(r.category||'').split(/[、,，]/).filter(function(c){return c.trim()});
-    var catHtml=cats.slice(0,3).map(function(c){return '<span class="tag tag-cat">'+esc(c.trim())+'</span>'}).join('');
-    // 去掉原始 Q\d+： 前綴，改用連續編號
+    var itemId=r.id;
+    var tags=Array.isArray(r.tags)&&r.tags.length?r.tags:
+             (r.category||'').split(/[、,，]/).filter(function(c){return c.trim()}).slice(0,3);
     var qBody=(r.q_text||'').replace(/^Q\d+[：:]\s*/,'');
-    html+='<div class="card">'
-      +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div><div class="q-txt">'+hilite(esc(qBody),kw)+'</div></div>'
-      +'<div class="card-tags">'+catHtml+'<span class="tag tag-yr">'+esc(r.year||'')+'</span></div>'
+    html+='<div class="card" data-id="'+itemId+'">'
+      +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div>'
+      +'<div class="q-txt">'+hilite(muteMetaInfo(qBody),kw)+'</div></div>'
+      +renderTagsHtml(itemId,tags)
       +'<div class="a-lbl">回答</div>'
-      +'<div class="a-txt">'+hilite(esc(r.a_text||''),kw)+'</div>'
+      +'<div class="a-txt">'+hilite(muteMetaInfo(r.a_text||''),kw)+'</div>'
       +'</div>';
   });
   // 分頁列
   if(totalPages>1){
     html+='<div class="pager">';
-    if(page>1)html+='<button class="pg-btn" onclick="_doSearch('+( page-1)+')">&#8592; 上一頁</button>';
-    // 頁碼最多顯示7個
+    if(page>1)html+='<button class="pg-btn" onclick="_doSearch('+(page-1)+')">&#8592; 上一頁</button>';
     var start=Math.max(1,page-3),end=Math.min(totalPages,page+3);
     for(var p=start;p<=end;p++){
       if(p===page)html+='<button class="pg-btn pg-cur">'+p+'</button>';
@@ -455,6 +567,36 @@ function renderResults(d,kw){
     html+='</div>';
   }
   document.getElementById('results').innerHTML=html;
+}
+
+/* ── 標籤操作 ── */
+function updateTagsOnServer(itemId, tags, onSuccess){
+  fetch('/qa/api/update_tags',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:itemId,tags:tags})})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.ok){
+      cardTags[itemId]=d.tags;
+      /* 重新渲染該卡片的 tags 區塊 */
+      var el=document.getElementById('tags-'+itemId);
+      if(el)el.outerHTML=renderTagsHtml(itemId,d.tags);
+      if(onSuccess)onSuccess();
+    }else{
+      alert('更新失敗：'+d.error);
+    }
+  }).catch(function(){alert('網路錯誤，請稍後再試');});
+}
+
+function removeTag(itemId, tag){
+  var cur=(cardTags[itemId]||[]).filter(function(t){return t!==tag});
+  updateTagsOnServer(itemId,cur,null);
+}
+
+function addTag(itemId, tag){
+  closePopover();
+  var cur=(cardTags[itemId]||[]);
+  if(cur.indexOf(tag)>=0)return;
+  var next=cur.concat([tag]);
+  updateTagsOnServer(itemId,next,null);
 }
 fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
   var html='';
@@ -554,6 +696,25 @@ def qa_search():
     except Exception as e:
         print("搜尋失敗：", e, flush=True)
         return jsonify({"results": [], "total": 0, "error": str(e)})
+
+@app.route("/qa/api/update_tags", methods=["POST"])
+@require_qa
+def qa_update_tags():
+    """更新單筆 qa_items 的 tags 陣列"""
+    data = request.get_json()
+    item_id = data.get("id")
+    tags    = data.get("tags", [])
+    if not item_id:
+        return jsonify({"ok": False, "error": "missing id"}), 400
+    if not isinstance(tags, list):
+        tags = []
+    tags = [str(t).strip() for t in tags if str(t).strip()]
+    try:
+        supabase.table("qa_items").update({"tags": tags}).eq("id", item_id).execute()
+        return jsonify({"ok": True, "tags": tags})
+    except Exception as e:
+        print("update_tags 失敗：", e, flush=True)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 # ──────────────────────────────────────────────
 # 管理介面主頁
