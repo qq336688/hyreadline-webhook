@@ -401,7 +401,7 @@ function openPopover(itemId, btnEl){
     return;
   }
   document.getElementById('popTagList').innerHTML=available.map(function(t){
-    return '<div class="pop-tag" onclick="addTag('+itemId+',\''+t+'\')">'+t+'</div>';
+    return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
   }).join('');
   var rect=btnEl.getBoundingClientRect();
   pop.style.display='block';
@@ -510,7 +510,7 @@ function renderTagsHtml(itemId, tags){
     arr.forEach(function(t){
       html+='<span class="tag tag-cat tag-edit">'
         +esc(t)
-        +'<button class="tag-del" onclick="removeTag('+itemId+',\''+esc(t)+'\')" title="移除">✕</button>'
+        +'<button class="tag-del" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handleDelTag(this)" title="移除">✕</button>'
         +'</span>';
     });
     html+='<button class="tag-add" onclick="openPopover('+itemId+',this)">＋ 新增標籤</button>';
@@ -597,6 +597,12 @@ function addTag(itemId, tag){
   if(cur.indexOf(tag)>=0)return;
   var next=cur.concat([tag]);
   updateTagsOnServer(itemId,next,null);
+}
+function handleDelTag(el){
+  removeTag(parseInt(el.dataset.id), el.dataset.tag);
+}
+function handlePopTag(el){
+  addTag(parseInt(el.dataset.id), el.dataset.tag);
 }
 fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
   var html='';
