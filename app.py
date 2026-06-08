@@ -229,10 +229,11 @@ aside{width:155px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8
 .yr-checks label{display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap}
 .yr-checks input[type=checkbox]{accent-color:#00b900;width:13px;height:13px;cursor:pointer}
 .divider{height:.5px;background:#eee;margin:5px 0}
-.cat-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;font-size:11px;color:#666;cursor:pointer}
-.cat-item:hover,.cat-item.active{background:#f0fff0;color:#1b5e20}
-.cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.cat-cnt{font-size:10px;color:#aaa;margin-left:auto}
+.tag-filter-chip{display:inline-block;padding:3px 10px;border:.5px solid #ddd;border-radius:99px;font-size:11px;color:#666;cursor:pointer;background:#fff;margin:2px;transition:background .12s,border-color .12s}
+.tag-filter-chip:hover{border-color:#00b900;color:#1b5e20}
+.tag-filter-chip.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
+.tag-clear-btn{font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;margin-top:4px;display:none;width:100%}
+.tag-clear-btn.visible{display:block}
 main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .search-bar{padding:12px 16px;border-bottom:.5px solid #e0e0e0;background:#fff}
 .search-row{display:flex;gap:8px}
@@ -267,18 +268,6 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .cat-card{background:#fff;border:.5px solid #e0e0e0;border-radius:8px;padding:10px 13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#444}
 .cat-card:hover{border-color:#00b900;color:#1b5e20;background:#f0fff0}
 .cat-card-cnt{font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:99px;padding:2px 8px;flex-shrink:0}
-/* ── 首頁 icon 卡片 ── */
-.home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:580px}
-.home-icon-card{background:#fff;border:.5px solid #e0e0e0;border-radius:12px;padding:18px 10px 14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;transition:box-shadow .15s,border-color .15s}
-.home-icon-card:hover{border-color:#00b900;box-shadow:0 2px 12px rgba(0,185,0,.12)}
-.home-icon-card .hic-icon{font-size:28px;line-height:1}
-.home-icon-card .hic-name{font-size:12px;font-weight:500;color:#333;text-align:center}
-.home-icon-card .hic-cnt{font-size:10px;color:#aaa}
-/* 次分類文字按鈕區 */
-.sub-tag-row{display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:580px}
-.sub-tag-btn{padding:6px 13px;background:#f5f5f5;border:.5px solid #e0e0e0;border-radius:99px;font-size:11px;color:#555;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .12s,border-color .12s}
-.sub-tag-btn:hover{background:#e8f5e9;border-color:#00b900;color:#1b5e20}
-.sub-tag-btn .stb-cnt{font-size:10px;color:#aaa}
 .loading{color:#aaa;font-size:13px;text-align:center;padding:40px}
 .err{color:#e53935;font-size:13px;text-align:center;padding:20px}
 /* ── 時間／發話者弱化 ── */
@@ -329,8 +318,9 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     <div class="yr-link" onclick="browseYear(this,'2026')">2026 年</div>
     <div class="yr-link" onclick="browseYear(this,'日常')">日常新增</div>
     <div class="divider"></div>
-    <div class="sb-lbl">問題分類</div>
-    <div id="catList"></div>
+    <div class="sb-lbl">標籤篩選</div>
+    <div id="tagFilterList" style="line-height:1.9"></div>
+    <button id="tagClearBtn" class="tag-clear-btn" onclick="clearTagFilter()">清除篩選</button>
   </aside>
   <main>
     <div class="search-bar">
@@ -361,16 +351,8 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     <div class="results" id="results">
       <div class="empty" id="homeState">
         <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
-        <div style="font-size:12px;color:#aaa;margin-bottom:16px">選擇分類快速瀏覽，或直接輸入關鍵字搜尋</div>
-        <!-- 主分類 icon 卡片 -->
-        <div id="catBrowse" class="home-grid"></div>
-        <!-- 次分類文字按鈕 -->
-        <div style="width:100%;max-width:580px;margin-top:14px">
-          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">次分類</div>
-          <div id="catBrowseSub" class="sub-tag-row"></div>
-        </div>
-        <!-- 快速關鍵字 -->
-        <div style="width:100%;max-width:580px;margin-top:16px;border-top:.5px solid #eee;padding-top:14px">
+        <div style="font-size:12px;color:#aaa;margin-bottom:16px">左側選擇標籤篩選，或直接輸入關鍵字搜尋</div>
+        <div style="width:100%;max-width:580px;border-top:.5px solid #eee;padding-top:14px">
           <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">快速搜尋</div>
           <div class="chips" style="justify-content:flex-start">
             <div class="chip" onclick="fill(this.textContent)">召回</div>
@@ -386,16 +368,44 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var catFilter='',browseMode=false,browseYr='',currentPage=1,editMode=false;
-/* 從後端載入的標籤定義，備援為常用標籤 */
-var PRESET_TAGS=['維修','保固','召回','操作','APP','帳號','物流','客服流程','軟體','設備維修','換貨','裝置維修','Kiosk設備管理','故障排除'];
-fetch('/qa/api/tag_definitions').then(function(r){return r.json()}).then(function(rows){
-  if(rows&&rows.length)PRESET_TAGS=rows.map(function(r){return r.name});
-}).catch(function(){});
+var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false;
+/* Popover 用的預設標籤 */
+var PRESET_TAGS=['維修','保固','召回','APP','帳號','物流','閱讀器','書櫃','破屏','線條','出線','忘記密碼','開放式','封閉式'];
 /* 各卡片目前的 tags 暫存 {id: [tags]} */
 var cardTags={};
 /* 目前 Popover 對應的 item id */
 var popTargetId=null;
+
+/* ── 載入並渲染側欄標籤 chips ── */
+function loadTagsSummary(){
+  fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
+    var html='';
+    tags.forEach(function(t){
+      html+='<span class="tag-filter-chip" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+    });
+    document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
+  }).catch(function(){});
+}
+loadTagsSummary();
+
+function toggleTagFilter(el){
+  var tag=el.dataset.tag;
+  var idx=selectedTags.indexOf(tag);
+  if(idx>=0){selectedTags.splice(idx,1);el.classList.remove('active');}
+  else{selectedTags.push(tag);el.classList.add('active');}
+  var clearBtn=document.getElementById('tagClearBtn');
+  if(selectedTags.length>0)clearBtn.classList.add('visible');
+  else clearBtn.classList.remove('visible');
+  exitBrowse();
+  _doSearch();
+}
+
+function clearTagFilter(){
+  selectedTags=[];
+  document.querySelectorAll('.tag-filter-chip.active').forEach(function(e){e.classList.remove('active')});
+  document.getElementById('tagClearBtn').classList.remove('visible');
+  _doSearch();
+}
 
 function toggleEditMode(){
   editMode=!editMode;
@@ -489,10 +499,9 @@ function fill(t){exitBrowse();document.getElementById('kw').value=t;_doSearch()}
 function clearSearch(){
   document.getElementById('kw').value='';
   document.getElementById('kw').focus();
-  exitBrowse();catFilter='';
-  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
+  exitBrowse();
   document.getElementById('cntBadge').style.display='none';
-  document.getElementById('results').innerHTML=\'<div class="empty" id="homeState"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字開始搜尋</div><div class="chips"><div class="chip" onclick="fill(this.textContent)">召回</div><div class="chip" onclick="fill(this.textContent)">保固</div><div class="chip" onclick="fill(this.textContent)">APP無法登入</div><div class="chip" onclick="fill(this.textContent)">退款</div><div class="chip" onclick="fill(this.textContent)">帳號</div><div class="chip" onclick="fill(this.textContent)">維修</div></div></div>\';
+  document.getElementById('results').innerHTML=\'<div class="empty" id="homeState"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字或點選左側標籤開始搜尋</div><div class="chips"><div class="chip" onclick="fill(this.textContent)">召回</div><div class="chip" onclick="fill(this.textContent)">保固</div><div class="chip" onclick="fill(this.textContent)">APP無法登入</div><div class="chip" onclick="fill(this.textContent)">退款</div><div class="chip" onclick="fill(this.textContent)">帳號</div><div class="chip" onclick="fill(this.textContent)">維修</div></div></div>\';
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
@@ -508,18 +517,18 @@ function hilite(text,kw){
 }
 function search(){
   var kw=document.getElementById('kw').value.trim();
-  if(kw||catFilter)exitBrowse();
+  if(kw)exitBrowse();
   _doSearch();
 }
 function _doSearch(page){
   currentPage=page||1;
   var kw=document.getElementById('kw').value.trim();
   var years=browseMode?[browseYr]:getCheckedYears();
-  if(!kw&&!catFilter&&!browseMode)return;
+  if(!kw&&!selectedTags.length&&!browseMode)return;
   document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
   document.getElementById('cntBadge').style.display='none';
   fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({keyword:kw,years:years,category:catFilter,page:currentPage})})
+    body:JSON.stringify({keyword:kw,years:years,tags:selectedTags,page:currentPage})})
   .then(function(r){return r.json()}).then(function(d){renderResults(d,kw)})
   .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
 }
@@ -559,15 +568,18 @@ function renderResults(d,kw){
   var browseLabel=browseYr+(browseYr==='日常'?'新增':' 年');
   if(!d.results||d.results.length===0){
     badge.style.display='none';
-    var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':''));
-    document.getElementById('results').innerHTML='<div class="empty"><div>找不到 '+label+' 的相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或分類試試</div></div>';
+    var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':'');
+    document.getElementById('results').innerHTML='<div class="empty"><div>找不到相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或標籤試試</div></div>';
     return;
   }
   badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
-  var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':(catFilter?'【'+esc(catFilter)+'】分類':''));
   var total=d.total,page=d.page||1,totalPages=d.total_pages||1,pageSize=d.page_size||50;
   var startNum=(page-1)*pageSize+1,endNum=Math.min(page*pageSize,total);
-  var cntTxt='共 '+total+' 筆'+(label?'符合 '+label+' 的':'')+'Q&A';
+  var parts=[];
+  if(selectedTags.length)parts.push('標籤：'+selectedTags.map(function(t){return esc(t)}).join(' × '));
+  if(kw)parts.push('關鍵字：「'+esc(kw)+'」');
+  if(browseMode)parts.push(browseLabel);
+  var cntTxt=(parts.length?parts.join('　')+'　— ':'')+'共 '+total+' 筆Q&A';
   if(total>pageSize)cntTxt+='，第 '+page+'/'+totalPages+' 頁（'+startNum+'～'+endNum+' 筆）';
   var html='<div class="count-row">'+cntTxt+'</div>';
   d.results.forEach(function(r,idx){
@@ -633,71 +645,6 @@ function handleDelTag(el){
 function handlePopTag(el){
   addTag(parseInt(el.dataset.id), el.dataset.tag);
 }
-/* 分類 icon 對應表（HTML entities，避免編碼截斷） */
-var CAT_ICONS={
-  '維修':'&#x1F527;','保固':'&#x1F6E1;','召回':'&#x1F4E2;',
-  '操作':'&#x2699;','APP':'&#x1F4F1;','帳號':'&#x1F464;',
-  '物流':'&#x1F4E6;','客服流程':'&#x1F4AC;',
-  '軟體':'&#x1F4BB;','設備維修':'&#x1F5A5;',
-  '換貨':'&#x1F504;','裝置維修':'&#x1F4D6;',
-  'Kiosk設備管理':'&#x1F3E7;','故障排除':'&#x1F50D;',
-  '銷售':'&#x1F4CA;','產品資訊':'&#x1F4CB;'
-};
-function catIcon(name){return CAT_ICONS[name]||'&#x1F3F7;';}
-
-fetch('/qa/api/categories_summary').then(function(r){return r.json()}).then(function(cats){
-  /* 側欄：主分類綠點、次分類藍點，不顯示「未定義」 */
-  var sideHtml='';
-  cats.filter(function(c){return c.type!=='未定義'&&c.cnt>0}).forEach(function(c){
-    var dotColor=c.type==='主分類'?'#00b900':'#1565c0';
-    sideHtml+='<div class="cat-item" data-cat="'+esc(c.cat)+'" onclick="handleCatClick(this)">'
-      +'<div class="cat-dot" style="background:'+dotColor+'"></div>'+esc(c.cat)
-      +'<span class="cat-cnt">'+c.cnt+'</span></div>';
-  });
-  document.getElementById('catList').innerHTML=sideHtml||'<div style="font-size:11px;color:#ccc;padding:4px 8px">尚無分類</div>';
-
-  /* 首頁主分類：icon 卡片 3 欄 */
-  var primary=cats.filter(function(c){return c.type==='主分類'&&c.cnt>0});
-  var secondary=cats.filter(function(c){return c.type==='次分類'&&c.cnt>0});
-  var browse=document.getElementById('catBrowse');
-  if(browse){
-    var bHtml='';
-    primary.forEach(function(c){
-      bHtml+='<div class="home-icon-card" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)">'
-        +'<div class="hic-icon">'+catIcon(c.cat)+'</div>'
-        +'<div class="hic-name">'+esc(c.cat)+'</div>'
-        +'<div class="hic-cnt">'+c.cnt+' 筆</div>'
-        +'</div>';
-    });
-    browse.innerHTML=bHtml||'<div style="color:#ccc;font-size:12px;grid-column:1/-1">尚無分類資料</div>';
-  }
-
-  /* 首頁次分類：文字按鈕列 */
-  var sub=document.getElementById('catBrowseSub');
-  if(sub){
-    var sHtml='';
-    secondary.forEach(function(c){
-      sHtml+='<div class="sub-tag-btn" data-cat="'+esc(c.cat)+'" onclick="handleCatClick2(this)">'
-        +catIcon(c.cat)+' '+esc(c.cat)
-        +'<span class="stb-cnt">'+c.cnt+'</span></div>';
-    });
-    sub.innerHTML=sHtml||'';
-    sub.parentElement.style.display=secondary.length?'':'none';
-  }
-}).catch(function(){});
-function handleCatClick(el){setCat(el,el.dataset.cat);}
-function handleCatClick2(el){
-  exitBrowse();catFilter=el.dataset.cat;
-  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
-  _doSearch();
-}
-function setCat(el,c){
-  exitBrowse();
-  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
-  if(catFilter===c){catFilter='';}
-  else{catFilter=c;el.classList.add('active');}
-  _doSearch();
-}
 </script></body></html>'''
 
 # ──────────────────────────────────────────────
@@ -755,16 +702,34 @@ def qa_batches():
     result = supabase.table("qa_results").select("id,year,batch_num,title,analyzed_at,total_msgs,categories,user_category,category_confirmed").order("id").execute()
     return jsonify(result.data)
 
+@app.route("/qa/api/tags_summary")
+@require_qa
+def qa_tags_summary():
+    """回傳所有 tags 及出現次數，依次數由高到低排序"""
+    try:
+        from collections import Counter
+        rows = supabase.table("qa_items").select("tags").execute().data
+        counter = Counter()
+        for r in rows:
+            for t in (r.get("tags") or []):
+                t = t.strip()
+                if t:
+                    counter[t] += 1
+        result = [{"tag": k, "cnt": v} for k, v in counter.most_common()]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify([])
+
 @app.route("/qa/api/search", methods=["POST"])
 @require_qa
 def qa_search():
     data = request.get_json()
     keyword = (data.get("keyword") or "").strip()
-    years = data.get("years", [])  # list of year strings; empty = all years
-    category = data.get("category", "")
+    years = data.get("years", [])
+    tags = data.get("tags", [])   # 多選標籤篩選
     page = int(data.get("page", 1))
     page_size = 50
-    if not keyword and not category and not years:
+    if not keyword and not tags and not years:
         return jsonify({"results": [], "total": 0, "page": 1, "total_pages": 0})
     try:
         query = supabase.table("qa_items").select("*")
@@ -773,8 +738,9 @@ def qa_search():
             query = query.or_(or_filter)
         if years:
             query = query.in_("year", years)
-        if category:
-            query = query.contains("tags", [category])
+        if tags:
+            for tag in tags:
+                query = query.contains("tags", [tag])
         rows = query.order("id").execute().data
         total = len(rows)
         total_pages = max(1, (total + page_size - 1) // page_size)
