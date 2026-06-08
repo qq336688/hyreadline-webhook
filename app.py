@@ -11,6 +11,8 @@ from supabase import create_client
 from datetime import datetime
 
 app = Flask(__name__)
+from tag_mgr import tag_mgr_bp
+app.register_blueprint(tag_mgr_bp)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "hyread-admin-2026-secret")
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
