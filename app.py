@@ -319,7 +319,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     <div class="yr-link" onclick="browseYear(this,'日常')">日常新增</div>
     <div class="divider"></div>
     <div class="sb-lbl">標籤篩選</div>
+    <input id="tagSearch" type="text" placeholder="搜尋標籤..."
+      style="width:100%;padding:5px 8px;border:.5px solid #ddd;border-radius:6px;font-size:11px;margin-bottom:6px;font-family:inherit;outline:none"
+      oninput="filterTagChips(this.value)">
     <div id="tagFilterList" style="line-height:1.9"></div>
+    <button id="tagShowMore" onclick="showAllTags()" style="font-size:10px;color:#00b900;padding:2px 0;border:none;background:transparent;cursor:pointer;width:100%;margin-top:2px;display:none">＋ 顯示全部標籤</button>
     <button id="tagClearBtn" class="tag-clear-btn" onclick="clearTagFilter()">清除篩選</button>
   </aside>
   <main>
@@ -351,7 +355,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     <div class="results" id="results">
       <div class="empty" id="homeState">
         <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
-        <div style="font-size:12px;color:#aaa;margin-bottom:16px">左側選擇標籤篩選，或直接輸入關鍵字搜尋</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div>
+        <div style="width:100%;max-width:580px;margin-bottom:14px">
+          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">熱門標籤</div>
+          <div id="homeTagChips" class="chips" style="justify-content:flex-start"></div>
+        </div>
         <div style="width:100%;max-width:580px;border-top:.5px solid #eee;padding-top:14px">
           <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">快速搜尋</div>
           <div class="chips" style="justify-content:flex-start">
@@ -377,15 +385,59 @@ var cardTags={};
 var popTargetId=null;
 
 /* ── 載入並渲染側欄標籤 chips ── */
+var allTagsData=[];
+var TAGS_DEFAULT_SHOW=30;
+var tagsExpanded=false;
+
 function loadTagsSummary(){
   fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
-    var html='';
-    tags.forEach(function(t){
-      html+='<span class="tag-filter-chip" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
-    });
-    document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
+    allTagsData=tags;
+    renderTagChips(tags,TAGS_DEFAULT_SHOW);
+    /* 首頁熱門標籤：取前20 */
+    var homeEl=document.getElementById('homeTagChips');
+    if(homeEl){
+      var homeHtml='';
+      tags.slice(0,20).forEach(function(t){
+        homeHtml+='<span class="chip" style="background:#f0fff0;border-color:#a5d6a7;color:#2e7d32" onclick="pickHomeTag(\''+esc(t.tag)+'\')">'+esc(t.tag)+'</span>';
+      });
+      homeEl.innerHTML=homeHtml;
+    }
   }).catch(function(){});
 }
+
+function renderTagChips(tags,limit){
+  var showMore=document.getElementById('tagShowMore');
+  var list=limit?tags.slice(0,limit):tags;
+  var html='';
+  list.forEach(function(t){
+    var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+    html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+  });
+  document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
+  if(showMore){showMore.style.display=(!tagsExpanded&&tags.length>TAGS_DEFAULT_SHOW)?'block':'none';}
+}
+
+function filterTagChips(kw){
+  var filtered=kw?allTagsData.filter(function(t){return t.tag.indexOf(kw)>=0}):allTagsData;
+  renderTagChips(filtered,(tagsExpanded||kw)?null:TAGS_DEFAULT_SHOW);
+}
+
+function showAllTags(){
+  tagsExpanded=true;
+  renderTagChips(allTagsData,null);
+}
+
+function pickHomeTag(tag){
+  exitBrowse();
+  if(selectedTags.indexOf(tag)<0){
+    selectedTags.push(tag);
+    var chip=document.querySelector('.tag-filter-chip[data-tag="'+tag+'"]');
+    if(chip)chip.classList.add('active');
+    document.getElementById('tagClearBtn').classList.add('visible');
+  }
+  _doSearch();
+}
+
 loadTagsSummary();
 
 function toggleTagFilter(el){
@@ -479,11 +531,10 @@ function updateScopeTxt(){
 
 /* ── 側欄年份瀏覽 ── */
 function browseYear(el,y){
-  browseMode=true;browseYr=y;catFilter='';
+  browseMode=true;browseYr=y;
   document.getElementById('kw').value='';
   document.querySelectorAll('.yr-link').forEach(function(e){e.classList.remove('active')});
   el.classList.add('active');
-  document.querySelectorAll('.cat-item').forEach(function(e){e.classList.remove('active')});
   document.getElementById('scopeTxt').textContent='瀏覽：'+y+(y==='日常'?'新增':' 年');
   _doSearch();
 }
@@ -1703,50 +1754,4 @@ def should_skip(msg, db_phrases=None, db_senders=None, db_keywords=None):
     if text in ("[圖片]","[貼圖]","[Sticker]") and not msg.get("file_url"): return True
     return False
 
-# ──────────────────────────────────────────────
-# Gemini 分析
-# ──────────────────────────────────────────────
-def analyze_messages(title, messages):
-    db_phrases, db_senders, db_keywords = get_db_filters()
-    filtered = [m for m in messages if not should_skip(m, db_phrases, db_senders, db_keywords)]
-    print("過濾前：", len(messages), "→ 過濾後：", len(filtered), flush=True)
-    messages = filtered
-
-    conversation = ""
-    for msg in messages:
-        line = "[" + msg.get("created_at","") + "] " + msg.get("sender","未知") + "：" + msg.get("text","")
-        if msg.get("file_url"):
-            line += " 📎" + msg["file_url"]
-        conversation += line + "\n"
-
-    prompt = (
-        "以下是LINE群組的客服對話記錄（" + title + "），請完成兩件事：\n\n"
-        "【第一部分】整理成Q&A格式\n"
-        "規則：\n"
-        "1. 自動判斷哪些訊息是問題、哪些是回答\n"
-        "2. 相同或相似的問題合併成一個Q\n"
-        "3. 問題內容後面用括號標明時間與提問者，格式：（YYYY/MM/DD HH:MM 姓名）\n"
-        "4. 回答內容後面用括號標明時間與回答者，格式：（YYYY/MM/DD HH:MM 姓名）\n"
-        "5. 若有多人回答，用分號「；」分隔\n"
-        "6. 輸出繁體中文\n"
-        "7. 若訊息為圖片/貼圖/無意義內容，可忽略\n\n"
-        "請輸出 JSON 格式（不需要 markdown code block）：\n"
-        "{\"qa_list\": [{\"q_text\": \"Q1：...\", \"a_text\": \"A：...\", \"category\": \"維修\"}]}\n"
-    )
-    return prompt
-
-
-def call_gemini_line(prompt):
-    response = gemini.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json")
-    )
-    raw = response.text.strip()
-    raw = re.sub(r"^```json\s*", "", raw)
-    raw = re.sub(r"```\s*$", "", raw)
-    return json.loads(raw)
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+# 
