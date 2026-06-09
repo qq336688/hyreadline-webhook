@@ -1439,17 +1439,19 @@ function loadStats(){
 }
 
 /* ── 帳號管理 ── */
+var _userCache={};
 function loadUsers(){
   fetch('/admin/api/users').then(function(r){return r.json()}).then(function(rows){
+    _userCache={};
     var html='';
     rows.forEach(function(u){
+      _userCache[u.id]=u;
       var canQ=u.can_query!==false;
       var canA=u.can_admin!==false;
       var active=u.is_active!==false;
       var statusBadge=active?'<span style="color:#2e7d32;font-weight:500">啟用</span>':'<span style="color:#aaa">停用</span>';
       var qBadge=canQ?'<span style="color:#1565c0">✓</span>':'<span style="color:#ddd">✗</span>';
       var aBadge=canA?'<span style="color:#1565c0">✓</span>':'<span style="color:#ddd">✗</span>';
-      var uJson=escAttr(JSON.stringify(u));
       html+='<tr>'
         +'<td style="color:#aaa">'+u.id+'</td>'
         +'<td style="font-weight:500">'+esc(u.username)+'</td>'
@@ -1458,7 +1460,7 @@ function loadUsers(){
         +'<td style="text-align:center;font-size:15px">'+qBadge+'</td>'
         +'<td style="text-align:center;font-size:15px">'+aBadge+'</td>'
         +'<td>'+statusBadge+'</td>'
-        +'<td><button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="編輯" onclick='openEditModal("'+uJson+'")'>✏️</button>'
+        +'<td><button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="編輯" onclick="openEditModal('+u.id+')">✏️</button>'
         +'<button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="刪除" onclick="delUser('+u.id+')">🗑</button></td></tr>';
     });
     document.getElementById('userTableBody').innerHTML=html||'<tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">無帳號</td></tr>';
@@ -1486,8 +1488,9 @@ function submitAddUser(){
     else{closeAddModal();loadUsers();}
   });
 }
-function openEditModal(uJson){
-  var u=typeof uJson==='string'?JSON.parse(uJson):uJson;
+function openEditModal(id){
+  var u=_userCache[id];
+  if(!u)return;
   document.getElementById('editUserId').value=u.id;
   document.getElementById('editUsrName').value=u.username;
   document.getElementById('editPwd').value='';
@@ -1537,9 +1540,7 @@ function submitBatch(){
   });
 }
 function downloadUserTemplate(){
-  var content='帳號,密碼,顯示名稱,角色
-stacy,pass123,陳玲儒,客服員
-john,pass456,王大明,維修技術員';
+  var content='帳號,密碼,顯示名稱,角色\nstacy,pass123,陳玲儒,客服員\njohn,pass456,王大明,維修技術員';
   var blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='帳號範本.csv';a.click();
 }
