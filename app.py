@@ -11,8 +11,6 @@ from supabase import create_client
 from datetime import datetime
 
 app = Flask(__name__)
-from tag_mgr import tag_mgr_bp
-app.register_blueprint(tag_mgr_bp)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "hyread-admin-2026-secret")
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
@@ -996,24 +994,18 @@ tr:hover td{background:#fafafa}
 <!-- 標籤管理 -->
 <div class="panel" id="tab-tagmgr">
   <div class="card">
-    <div class="card-title">➕ 新增標籤</div>
-    <div class="add-row">
-      <input type="text" id="newTagName" placeholder="標籤名稱（例如：Kiosk設備管理）" style="width:220px">
-      <select id="newTagType" style="width:100px">
-        <option value="主分類">主分類</option>
-        <option value="次分類" selected>次分類</option>
-      </select>
-      <button class="btn-green" onclick="addTagDef()">新增</button>
-    </div>
-    <div id="tagDefMsg" class="msg"></div>
+    <div class="card-title">&#128260; 從 Q&amp;A 資料同步標籤</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">將 Q&amp;A 資料中所有標籤匯入管理清單，已存在的不重複新增。</div>
+    <button class="btn-green" onclick="syncTagNames()" id="syncTagBtn">立即同步</button>
+    <span id="syncTagMsg" class="msg" style="margin-left:10px"></span>
   </div>
   <div class="card">
-    <div class="card-title">🏷️ 標籤定義清單
-      <span style="font-size:11px;color:#aaa;font-weight:400;margin-left:8px">主分類顯示於首頁大卡片，次分類顯示於次要區塊</span>
+    <div class="card-title">&#127991;&#65039; 標籤清單
+      <span style="font-size:11px;color:#aaa;font-weight:400;margin-left:8px" id="tagNameCount"></span>
     </div>
     <table>
-      <thead><tr><th style="width:40px">排序</th><th>標籤名稱</th><th style="width:80px">類型</th><th style="width:80px">操作</th></tr></thead>
-      <tbody id="tagDefTable"><tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+      <thead><tr><th>標籤名稱</th><th style="width:60px;text-align:center">筆數</th><th style="width:120px">操作</th></tr></thead>
+      <tbody id="tagNamesTable"><tr><td colspan="3" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -1279,56 +1271,138 @@ function escQ(t){return(t||'').replace(/\'/g,'\\\'').replace(/"/g,'&quot;')}
 function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
 function showMsg(id,msg,isErr){var el=document.getElementById(id);el.className='msg'+(isErr?' err':'');el.textContent=msg;setTimeout(function(){el.textContent=''},3000)}
 
-/* ── 標籤定義管理 ── */
+/* ── 標籤名稱管理 ── */
 function loadTagDefs(){
-  fetch('/admin/api/tag_definitions').then(function(r){return r.json()}).then(function(rows){
+  fetch('/admin/api/tag_names').then(function(r){return r.json()}).then(function(rows){
+    var countEl=document.getElementById('tagNameCount');
+    if(countEl)countEl.textContent='共 '+rows.length+' 個標籤';
     var html='';
     rows.forEach(function(r){
-      var typeColor=r.type==='主分類'?'#2e7d32':'#1565c0';
-      var typeBg=r.type==='主分類'?'#e8f5e9':'#e3f2fd';
-      html+='<tr>'
-        +'<td style="color:#aaa;font-size:11px">'+r.sort_order+'</td>'
-        +'<td style="font-weight:500">'+esc(r.name)+'</td>'
-        +'<td><span style="background:'+typeBg+';color:'+typeColor+';font-size:11px;padding:2px 8px;border-radius:99px;cursor:pointer" onclick="toggleTagType('+r.id+',this)">'+esc(r.type)+'</span></td>'
-        +'<td><button class="btn-outline" onclick="delTagDef('+r.id+',this)">刪除</button></td>'
-        +'</tr>';
+      html+='<tr id="tagrow-'+r.id+'">'
+        +'<td><span id="tagname-'+r.id+'" style="font-weight:500">'+esc(r.name)+'</span>'
+        +'<input id="taginput-'+r.id+'" type="text" value="'+esc(r.name)+'" style="display:none;padding:4px 8px;border:.5px solid #ddd;border-radius:4px;font-size:12px;width:160px"></td>'
+        +'<td style="text-align:center;color:#aaa;font-size:12px">'+r.cnt+'</td>'
+        +'<td>'
+        +'<button class="btn-outline" id="editbtn-'+r.id+'" onclick="startEditTag('+r.id+')" style="margin-right:4px">改名</button>'
+        +'<button class="btn-green" id="savebtn-'+r.id+'" onclick="saveTagName('+r.id+')" style="display:none;margin-right:4px">儲存</button>'
+        +'<button class="btn-outline" id="cancelbtn-'+r.id+'" onclick="cancelEditTag('+r.id+')" style="display:none">取消</button>'
+        +'</td></tr>';
     });
-    document.getElementById('tagDefTable').innerHTML=html||'<tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">尚無標籤定義</td></tr>';
+    document.getElementById('tagNamesTable').innerHTML=html||'<tr><td colspan="3" style="color:#aaa;text-align:center;padding:20px">尚無標籤，請先點「立即同步」</td></tr>';
   });
 }
-function addTagDef(){
-  var name=document.getElementById('newTagName').value.trim();
-  var type=document.getElementById('newTagType').value;
-  if(!name){showMsg('tagDefMsg','請輸入標籤名稱',true);return;}
-  fetch('/admin/api/tag_definitions',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name:name,type:type})})
+function startEditTag(id){
+  document.getElementById('tagname-'+id).style.display='none';
+  document.getElementById('taginput-'+id).style.display='';
+  document.getElementById('editbtn-'+id).style.display='none';
+  document.getElementById('savebtn-'+id).style.display='';
+  document.getElementById('cancelbtn-'+id).style.display='';
+  document.getElementById('taginput-'+id).focus();
+}
+function cancelEditTag(id){
+  var orig=document.getElementById('tagname-'+id).textContent;
+  document.getElementById('taginput-'+id).value=orig;
+  document.getElementById('tagname-'+id).style.display='';
+  document.getElementById('taginput-'+id).style.display='none';
+  document.getElementById('editbtn-'+id).style.display='';
+  document.getElementById('savebtn-'+id).style.display='none';
+  document.getElementById('cancelbtn-'+id).style.display='none';
+}
+function saveTagName(id){
+  var newName=document.getElementById('taginput-'+id).value.trim();
+  var oldName=document.getElementById('tagname-'+id).textContent;
+  if(!newName){alert('標籤名稱不可為空');return;}
+  if(newName===oldName){cancelEditTag(id);return;}
+  document.getElementById('savebtn-'+id).textContent='更新中...';
+  fetch('/admin/api/tag_names/'+id+'/rename',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({new_name:newName})})
   .then(function(r){return r.json()}).then(function(d){
-    if(d.error){showMsg('tagDefMsg',d.error,true);}
-    else{document.getElementById('newTagName').value='';showMsg('tagDefMsg','新增成功！',false);loadTagDefs();}
+    if(d.ok){showMsg('syncTagMsg','「'+oldName+'」已更新為「'+newName+'」（'+d.updated_items+' 筆 Q&A 同步）',false);loadTagDefs();}
+    else{alert('失敗：'+d.error);document.getElementById('savebtn-'+id).textContent='儲存';}
   });
 }
-function toggleTagType(id, el){
-  var cur=el.textContent.trim();
-  var next=cur==='主分類'?'次分類':'主分類';
-  fetch('/admin/api/tag_definitions/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({type:next})})
+function syncTagNames(){
+  var btn=document.getElementById('syncTagBtn');
+  btn.textContent='同步中...';btn.disabled=true;
+  fetch('/admin/api/tag_names/sync',{method:'POST'})
   .then(function(r){return r.json()}).then(function(d){
-    if(d.ok)loadTagDefs();
-    else alert('更新失敗：'+d.error);
-  });
-}
-function delTagDef(id, btn){
-  if(!confirm('確定刪除此標籤定義？（不影響已存在的 qa_items.tags 資料）'))return;
-  fetch('/admin/api/tag_definitions/'+id,{method:'DELETE'})
-  .then(function(r){return r.json()}).then(function(d){
-    if(d.ok)loadTagDefs();
-    else alert('刪除失敗：'+d.error);
-  });
+    btn.textContent='立即同步';btn.disabled=false;
+    showMsg('syncTagMsg','同步完成，新增 '+d.added+' 個標籤',false);
+    loadTagDefs();
+  }).catch(function(){btn.textContent='立即同步';btn.disabled=false;});
 }
 
 /* 預設載入 */
 loadWords();
 </script></body></html>'''
+
+# ──────────────────────────────────────────────
+# 管理 API — 標籤名稱管理
+# ──────────────────────────────────────────────
+@app.route("/admin/api/tag_names")
+@require_admin
+def admin_get_tag_names():
+    try:
+        from collections import Counter
+        names = supabase.table("tag_names").select("id,name,created_at").order("name").execute().data or []
+        rows  = supabase.table("qa_items").select("tags").execute().data or []
+        counter = Counter()
+        for r in rows:
+            for t in (r.get("tags") or []):
+                t = t.strip()
+                if t: counter[t] += 1
+        for n in names:
+            n["cnt"] = counter.get(n["name"], 0)
+        return jsonify(names)
+    except Exception as e:
+        return jsonify([])
+
+@app.route("/admin/api/tag_names/sync", methods=["POST"])
+@require_admin
+def admin_sync_tag_names():
+    try:
+        from collections import Counter
+        rows = supabase.table("qa_items").select("tags").execute().data or []
+        counter = Counter()
+        for r in rows:
+            for t in (r.get("tags") or []):
+                t = t.strip()
+                if t: counter[t] += 1
+        existing = {n["name"] for n in (supabase.table("tag_names").select("name").execute().data or [])}
+        added = 0
+        for tag in counter.keys():
+            if tag not in existing:
+                supabase.table("tag_names").insert({"name": tag}).execute()
+                added += 1
+        return jsonify({"ok": True, "added": added})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/admin/api/tag_names/<int:tag_id>/rename", methods=["POST"])
+@require_admin
+def admin_rename_tag(tag_id):
+    try:
+        data = request.get_json()
+        new_name = (data.get("new_name") or "").strip()
+        if not new_name:
+            return jsonify({"ok": False, "error": "新名稱不可為空"}), 400
+        row = supabase.table("tag_names").select("name").eq("id", tag_id).execute().data
+        if not row:
+            return jsonify({"ok": False, "error": "找不到此標籤"}), 404
+        old_name = row[0]["name"]
+        if old_name == new_name:
+            return jsonify({"ok": True, "updated_items": 0})
+        supabase.table("tag_names").update({"name": new_name}).eq("id", tag_id).execute()
+        items = supabase.table("qa_items").select("id,tags").contains("tags", [old_name]).execute().data or []
+        updated = 0
+        for item in items:
+            new_tags = [new_name if t == old_name else t for t in (item.get("tags") or [])]
+            supabase.table("qa_items").update({"tags": new_tags}).eq("id", item["id"]).execute()
+            updated += 1
+        return jsonify({"ok": True, "updated_items": updated})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 # ──────────────────────────────────────────────
 # 管理 API — 標籤定義
@@ -1732,28 +1806,38 @@ def get_db_filters():
         rows = supabase.table("filter_words").select("word,type,is_system").execute().data
         phrases, senders, keywords = set(), set(), []
         for r in rows:
-            t = r.get("type","phrase")
-            if t == "phrase":   phrases.add(r["word"])
-            elif t == "sender": senders.add(r["word"])
-            elif t == "keyword": keywords.append(r["word"])
+            t = r.get("type", "phrase")
+            w = (r.get("word") or "").strip()
+            if not w:
+                continue
+            if t == "phrase":
+                phrases.add(w)
+            elif t == "sender":
+                senders.add(w)
+            else:
+                keywords.append(w)
         return phrases, senders, keywords
-    except:
+    except Exception:
         return set(), set(), []
 
-def should_skip(msg, db_phrases=None, db_senders=None, db_keywords=None):
-    text   = (msg.get("text")   or "").strip()
+
+def should_skip(msg, db_phrases, db_senders, db_keywords):
+    text   = (msg.get("text") or "").strip()
     sender = (msg.get("sender") or "").strip()
-    if not text: return True
+    mtype  = msg.get("type", "text")
+    if mtype in ("system",): return True
     if sender in HARD_BOT_SENDERS: return True
     if db_senders and sender in db_senders: return True
     if any(text.startswith(p) for p in HARD_BOT_PREFIXES): return True
-    if text.startswith("整理QA"): return True
+    if text.startswith("QA"): return True
     if any(kw in text for kw in HARD_SYSTEM): return True
     if db_keywords and any(kw in text for kw in db_keywords): return True
     if not EMOJI_RE.sub("", text).strip(): return True
     if text in HARD_PHRASES: return True
     if db_phrases and text in db_phrases: return True
-    if text in ("[圖片]","[貼圖]","[Sticker]") and not msg.get("file_url"): return True
+    if text in ("[圖片]", "[貼圖]", "[Sticker]") and not msg.get("file_url"): return True
     return False
 
-# 
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
