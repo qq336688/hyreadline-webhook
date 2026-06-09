@@ -746,19 +746,28 @@ def qa_batches():
 @app.route("/qa/api/tags_summary")
 @require_qa
 def qa_tags_summary():
-    """回傳所有 tags 及出現次數，依次數由高到低排序"""
+    """回傳所有 tags 及出現次數，依次數由高到低排序（分頁取全量）"""
     try:
         from collections import Counter
-        rows = supabase.table("qa_items").select("tags").execute().data
         counter = Counter()
-        for r in rows:
-            for t in (r.get("tags") or []):
-                t = t.strip()
-                if t:
-                    counter[t] += 1
+        offset = 0
+        batch = 1000
+        while True:
+            rows = supabase.table("qa_items").select("tags").range(offset, offset + batch - 1).execute().data
+            if not rows:
+                break
+            for r in rows:
+                for t in (r.get("tags") or []):
+                    t = t.strip()
+                    if t:
+                        counter[t] += 1
+            if len(rows) < batch:
+                break
+            offset += batch
         result = [{"tag": k, "cnt": v} for k, v in counter.most_common()]
         return jsonify(result)
     except Exception as e:
+        print("tags_summary error:", e, flush=True)
         return jsonify([])
 
 @app.route("/qa/api/search", methods=["POST"])
@@ -773,21 +782,33 @@ def qa_search():
     if not keyword and not tags and not years:
         return jsonify({"results": [], "total": 0, "page": 1, "total_pages": 0})
     try:
-        query = supabase.table("qa_items").select("*")
+        # 先用 count=exact 取得總筆數（不受 1000 筆限制）
+        count_q = supabase.table("qa_items").select("id", count="exact")
         if keyword:
             or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
-            query = query.or_(or_filter)
+            count_q = count_q.or_(or_filter)
         if years:
-            query = query.in_("year", years)
+            count_q = count_q.in_("year", years)
         if tags:
             for tag in tags:
-                query = query.contains("tags", [tag])
-        rows = query.order("id").execute().data
-        total = len(rows)
+                count_q = count_q.contains("tags", [tag])
+        count_res = count_q.execute()
+        total = count_res.count or 0
         total_pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(page, total_pages))
         start = (page - 1) * page_size
-        return jsonify({"results": rows[start:start+page_size], "total": total,
+        # 再取當頁資料
+        data_q = supabase.table("qa_items").select("*")
+        if keyword:
+            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
+            data_q = data_q.or_(or_filter)
+        if years:
+            data_q = data_q.in_("year", years)
+        if tags:
+            for tag in tags:
+                data_q = data_q.contains("tags", [tag])
+        rows = data_q.order("id").range(start, start + page_size - 1).execute().data
+        return jsonify({"results": rows, "total": total,
                         "page": page, "total_pages": total_pages, "page_size": page_size})
     except Exception as e:
         print("搜尋失敗：", e, flush=True)
