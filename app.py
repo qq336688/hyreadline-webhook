@@ -356,20 +356,9 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
       <div class="empty" id="homeState">
         <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
         <div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div>
-        <div style="width:100%;max-width:580px;margin-bottom:14px">
-          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">熱門標籤</div>
+        <div style="width:100%;max-width:700px;margin-bottom:14px">
+          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:10px">點選標籤篩選</div>
           <div id="homeTagChips" class="chips" style="justify-content:flex-start"></div>
-        </div>
-        <div style="width:100%;max-width:580px;border-top:.5px solid #eee;padding-top:14px">
-          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:8px">快速搜尋</div>
-          <div class="chips" style="justify-content:flex-start">
-            <div class="chip" onclick="fill(this.textContent)">召回</div>
-            <div class="chip" onclick="fill(this.textContent)">保固</div>
-            <div class="chip" onclick="fill(this.textContent)">APP無法登入</div>
-            <div class="chip" onclick="fill(this.textContent)">退款</div>
-            <div class="chip" onclick="fill(this.textContent)">帳號</div>
-            <div class="chip" onclick="fill(this.textContent)">維修</div>
-          </div>
         </div>
       </div>
     </div>
@@ -393,12 +382,13 @@ function loadTagsSummary(){
   fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
     allTagsData=tags;
     renderTagChips(tags,TAGS_DEFAULT_SHOW);
-    /* 首頁熱門標籤：取前20 */
+    /* 首頁顯示全部標籤 */
     var homeEl=document.getElementById('homeTagChips');
     if(homeEl){
       var homeHtml='';
-      tags.slice(0,20).forEach(function(t){
-        homeHtml+='<span class="chip" style="background:#f0fff0;border-color:#a5d6a7;color:#2e7d32" onclick="pickHomeTag(\''+esc(t.tag)+'\')">'+esc(t.tag)+'</span>';
+      tags.forEach(function(t){
+        var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+        homeHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(''+esc(t.tag)+'')">'  +esc(t.tag)+'</span>';
       });
       homeEl.innerHTML=homeHtml;
     }
