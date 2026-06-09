@@ -220,7 +220,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-seri
 .topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;flex-shrink:0}
 .topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
 .wrap{display:flex;flex:1;overflow:hidden}
-aside{width:155px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
+aside{width:240px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
+.yearbar{background:#1a8c2e;padding:7px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.yr-bar-btn{padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:.5px solid rgba(255,255,255,.35);color:rgba(255,255,255,.9);background:rgba(255,255,255,.12)}
+.yr-bar-btn:hover{background:rgba(255,255,255,.25)}
+.yr-bar-btn.active{background:rgba(255,255,255,.9);color:#1a6b35;font-weight:500;border-color:transparent}
+.tag-group-hdr{font-size:10px;font-weight:600;color:#555;padding:6px 2px 3px;letter-spacing:.4px;display:flex;align-items:center;gap:5px;cursor:pointer}
+.tag-group-hdr .grp-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.tag-group-hdr .grp-count{font-size:9px;color:#aaa;margin-left:auto}
 .sb-lbl{font-size:10px;color:#aaa;padding:7px 5px 3px;letter-spacing:.5px}
 .yr-link{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:.5px solid transparent;color:#666;text-align:left}
 .yr-link.active{background:#e8f5e9;border:.5px solid #00b900;color:#1b5e20;font-weight:500}
@@ -305,19 +312,20 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   <div class="pop-title">選擇標籤</div>
   <div class="pop-tags" id="popTagList"></div>
 </div>
+<div class="yearbar">
+  <span style="font-size:11px;color:rgba(255,255,255,.6);margin-right:2px;">歷史資料：</span>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2019')">2019</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2020')">2020</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2021')">2021</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2022')">2022</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2023')">2023</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2024')">2024</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2025')">2025</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2026')">2026</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'日常')">日常新增</div>
+</div>
 <div class="wrap">
   <aside>
-    <div class="sb-lbl">歷史資料瀏覽</div>
-    <div class="yr-link" onclick="browseYear(this,'2019')">2019 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2020')">2020 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2021')">2021 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2022')">2022 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2023')">2023 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2024')">2024 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2025')">2025 年</div>
-    <div class="yr-link" onclick="browseYear(this,'2026')">2026 年</div>
-    <div class="yr-link" onclick="browseYear(this,'日常')">日常新增</div>
-    <div class="divider"></div>
     <div class="sb-lbl">標籤篩選</div>
     <input id="tagSearch" type="text" placeholder="搜尋標籤..."
       style="width:100%;padding:5px 8px;border:.5px solid #ddd;border-radius:6px;font-size:11px;margin-bottom:6px;font-family:inherit;outline:none"
@@ -379,20 +387,77 @@ var TAGS_DEFAULT_SHOW=30;
 var tagsExpanded=false;
 
 function loadTagsSummary(){
-  fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
-    allTagsData=tags;
-    renderTagChips(tags,TAGS_DEFAULT_SHOW);
-    /* 首頁顯示全部標籤 */
+  fetch('/qa/api/tags_with_groups').then(function(r){return r.json()}).then(function(d){
+    allTagsData=d.tags||[];
+    renderGroupedTagChips(allTagsData);
     var homeEl=document.getElementById('homeTagChips');
-    if(homeEl){
-      var homeHtml='';
-      tags.forEach(function(t){
-        var active=selectedTags.indexOf(t.tag)>=0?' active':'';
-        homeHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'  +esc(t.tag)+'</span>';
-      });
-      homeEl.innerHTML=homeHtml;
-    }
-  }).catch(function(){});
+    if(homeEl){renderHomeTagChips(allTagsData,homeEl);}
+  }).catch(function(){
+    fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
+      allTagsData=tags;
+      renderTagChips(tags,TAGS_DEFAULT_SHOW);
+    });
+  });
+}
+
+var GRP_COLORS={'裝置型號':'#1D9E75','問題類型':'#378ADD','配件':'#BA7517','系統與軟體':'#7F77DD','未分群':'#888780'};
+function grpColor(g){return GRP_COLORS[g]||'#888780';}
+
+function renderGroupedTagChips(tags){
+  var kw=document.getElementById('tagSearch')?document.getElementById('tagSearch').value.trim():'';
+  var filtered=kw?tags.filter(function(t){return t.tag.indexOf(kw)>=0;}):tags;
+  var groups={};
+  filtered.forEach(function(t){
+    var g=t.group||'未分群';
+    if(!groups[g])groups[g]=[];
+    groups[g].push(t);
+  });
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var html='';
+  order.forEach(function(g){
+    if(!groups[g]||!groups[g].length)return;
+    var col=grpColor(g);
+    html+='<div class="tag-group-hdr"><span class="grp-dot" style="background:'+col+'"></span>'+g+'<span class="grp-count">'+groups[g].length+'</span></div>';
+    groups[g].forEach(function(t){
+      var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+      html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+    });
+  });
+  Object.keys(groups).forEach(function(g){
+    if(order.indexOf(g)>=0)return;
+    var col=grpColor(g);
+    html+='<div class="tag-group-hdr"><span class="grp-dot" style="background:'+col+'"></span>'+g+'<span class="grp-count">'+groups[g].length+'</span></div>';
+    groups[g].forEach(function(t){
+      var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+      html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+    });
+  });
+  document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
+  var showMore=document.getElementById('tagShowMore');
+  if(showMore)showMore.style.display='none';
+}
+
+function renderHomeTagChips(tags,el){
+  var html='';
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var groups={};
+  tags.forEach(function(t){var g=t.group||'未分群';if(!groups[g])groups[g]=[];groups[g].push(t);});
+  order.forEach(function(g){
+    if(!groups[g])return;
+    var col=grpColor(g);
+    html+='<div style="margin:6px 0 3px;font-size:10px;color:'+col+';font-weight:600;letter-spacing:.3px;">'+g+'</div>';
+    groups[g].forEach(function(t){
+      var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+      html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'+esc(t.tag)+'</span>';
+    });
+  });
+  el.innerHTML=html;
+}
+
+function browseYearBar(el,yr){
+  document.querySelectorAll('.yr-bar-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  browseYear(null,yr);
 }
 
 function renderTagChips(tags,limit){
@@ -408,8 +473,7 @@ function renderTagChips(tags,limit){
 }
 
 function filterTagChips(kw){
-  var filtered=kw?allTagsData.filter(function(t){return t.tag.indexOf(kw)>=0}):allTagsData;
-  renderTagChips(filtered,(tagsExpanded||kw)?null:TAGS_DEFAULT_SHOW);
+  renderGroupedTagChips(allTagsData);
 }
 
 function showAllTags(){
@@ -546,7 +610,7 @@ function clearSearch(){
   exitBrowse();
   document.getElementById('cntBadge').style.display='none';
   document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:10px">點選標籤篩選</div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
-  if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl){var hHtml='';allTagsData.forEach(function(t){var act=selectedTags.indexOf(t.tag)>=0?' active':'';hHtml+='<span class="tag-filter-chip'+act+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'+esc(t.tag)+'</span>';});hEl.innerHTML=hHtml;}}
+  if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl){var hHtml='';renderHomeTagChips(allTagsData,hEl);}}
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
@@ -917,6 +981,7 @@ tr:hover td{background:#fafafa}
   <div class="tab" onclick="showTab(this,'token')">⚡ Token 用量</div>
   <div class="tab" onclick="showTab(this,'users')">👤 帳號管理</div>
   <div class="tab" onclick="showTab(this,'tagmgr')">🏷️ 標籤管理</div>
+  <div class="tab" onclick="showTab(this,'groupmgr')">🗂️ 群組管理</div>
 </div>
 
 <!-- 過濾詞句 -->
@@ -1014,6 +1079,145 @@ tr:hover td{background:#fafafa}
   </div>
 </div>
 
+<!-- 群組管理 -->
+<div class="panel" id="tab-groupmgr" style="display:none">
+  <div class="card">
+    <div class="card-title">🗂️ 群組管理</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input id="newGroupName" placeholder="新群組名稱" style="flex:1;min-width:150px;" />
+      <button onclick="createGroup()">＋ 新增群組</button>
+    </div>
+    <div id="groupList"></div>
+  </div>
+  <div class="card" id="groupTagCard" style="display:none">
+    <div class="card-title" id="groupTagTitle">標籤列表</div>
+    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <input id="tagSearchInGroup" placeholder="搜尋標籤..." oninput="filterGroupTags()" style="flex:1;" />
+    </div>
+    <div id="groupTagList" style="max-height:400px;overflow-y:auto;"></div>
+  </div>
+</div>
+<script>
+var currentGroup='';
+var allGroupTags=[];
+var allGroups=[];
+
+function loadGroups(){
+  fetch('/admin/api/groups').then(r=>r.json()).then(d=>{
+    allGroups=d.groups||[];
+    renderGroups();
+  });
+}
+
+function renderGroups(){
+  var html='<table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr style="background:#f5f5f5;"><th style="padding:8px 12px;text-align:left;">群組名稱</th><th style="padding:8px 12px;text-align:right;">標籤數</th><th style="padding:8px 12px;text-align:center;">操作</th></tr></thead><tbody>';
+  allGroups.forEach(function(g){
+    var esc=g.name.replace(/'/g,"\'");
+    html+='<tr style="border-bottom:1px solid #eee;"><td style="padding:8px 12px;"><span style="cursor:pointer;color:#1a73e8;" onclick="viewGroupTags(''+esc+'')">'
+      +g.name+'</span></td>'
+      +'<td style="padding:8px 12px;text-align:right;">'+g.count+'</td>'
+      +'<td style="padding:8px 12px;text-align:center;">'
+      +'<button onclick="renameGroup(''+esc+'')" style="margin-right:4px;font-size:12px;">改名</button>'
+      +(g.name!=='未分群'?'<button onclick="mergeGroup(''+esc+'')" style="margin-right:4px;font-size:12px;">合併至</button>':'')
+      +(g.name!=='未分群'?'<button onclick="deleteGroup(''+esc+'')" style="font-size:12px;color:#c62828;">刪除</button>':'')
+      +'</td></tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('groupList').innerHTML=html;
+}
+
+function createGroup(){
+  var name=document.getElementById('newGroupName').value.trim();
+  if(!name){alert('請輸入群組名稱');return;}
+  fetch('/admin/api/groups/tag',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tag_name:'__placeholder__'+name,group_name:name})})
+  .then(r=>r.json()).then(function(){
+    document.getElementById('newGroupName').value='';
+    loadGroups();
+    alert('群組已建立（尚無標籤，請從標籤列表指定）');
+  });
+}
+
+function renameGroup(name){
+  var newName=prompt('將「'+name+'」改名為：',name);
+  if(!newName||newName===name)return;
+  fetch('/admin/api/groups/rename',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({old_name:name,new_name:newName.trim()})})
+  .then(r=>r.json()).then(function(d){
+    if(d.ok){loadGroups();if(currentGroup===name){currentGroup=newName.trim();viewGroupTags(currentGroup);}}
+    else alert('失敗：'+d.error);
+  });
+}
+
+function mergeGroup(source){
+  var targets=allGroups.filter(function(g){return g.name!==source;}).map(function(g){return g.name;});
+  var target=prompt('將「'+source+'」合併至哪個群組？
+選項：'+targets.join('、'));
+  if(!target)return;
+  if(!targets.includes(target)){alert('找不到群組「'+target+'」');return;}
+  if(!confirm('確定將「'+source+'」所有標籤移至「'+target+'」？'))return;
+  fetch('/admin/api/groups/merge',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({source:source,target:target})})
+  .then(r=>r.json()).then(function(d){
+    if(d.ok){loadGroups();}
+    else alert('失敗：'+d.error);
+  });
+}
+
+function deleteGroup(name){
+  if(!confirm('刪除群組「'+name+'」？
+其下所有標籤將移至「未分群」'))return;
+  fetch('/admin/api/groups/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name})})
+  .then(r=>r.json()).then(function(d){
+    if(d.ok){loadGroups();}
+    else alert('失敗：'+d.error);
+  });
+}
+
+function viewGroupTags(group){
+  currentGroup=group;
+  document.getElementById('groupTagCard').style.display='';
+  document.getElementById('groupTagTitle').textContent='「'+group+'」的標籤';
+  fetch('/admin/api/groups/tags?group='+encodeURIComponent(group))
+  .then(r=>r.json()).then(function(d){
+    allGroupTags=d.tags||[];
+    filterGroupTags();
+  });
+}
+
+function filterGroupTags(){
+  var kw=document.getElementById('tagSearchInGroup').value.trim().toLowerCase();
+  var filtered=kw?allGroupTags.filter(function(t){return t.tag_name.toLowerCase().includes(kw);}):allGroupTags;
+  renderGroupTags(filtered);
+}
+
+function renderGroupTags(tags){
+  var otherGroups=allGroups.filter(function(g){return g.name!==currentGroup;}).map(function(g){return g.name;});
+  var opts=otherGroups.map(function(g){return '<option value="'+g+'">'+g+'</option>';}).join('');
+  var html='';
+  tags.forEach(function(t){
+    var esc=t.tag_name.replace(/"/g,'&quot;');
+    html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;">'
+      +'<span style="flex:1;font-size:13px;">'+t.tag_name+'</span>'
+      +'<select onchange="moveTag(''+esc+'',this.value)" style="font-size:12px;">'
+      +'<option value="">移至...</option>'+opts+'</select>'
+      +'</div>';
+  });
+  document.getElementById('groupTagList').innerHTML=html||'<p style="color:#999;font-size:13px;">（無標籤）</p>';
+}
+
+function moveTag(tagName,newGroup){
+  if(!newGroup)return;
+  fetch('/admin/api/groups/tag',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tag_name:tagName,group_name:newGroup})})
+  .then(r=>r.json()).then(function(d){
+    if(d.ok){viewGroupTags(currentGroup);loadGroups();}
+    else alert('失敗：'+d.error);
+  });
+}
+</script>
+
 <!-- 標籤管理 -->
 <div class="panel" id="tab-tagmgr">
   <div class="card">
@@ -1059,6 +1263,7 @@ function showTab(el,name){
   if(name==='token')loadTokens();
   if(name==='users')loadUsers();
   if(name==='tagmgr')loadTagDefs();
+  if(name==='groupmgr')loadGroups();
 }
 
 /* ── 過濾詞句 ── */
@@ -1490,6 +1695,123 @@ def admin_delete_tag_def(tag_id):
 # ──────────────────────────────────────────────
 # 管理 API — 帳號管理
 # ──────────────────────────────────────────────
+
+# ── 群組管理 API ────────────────────────────────────────────────────
+
+@app.route('/admin/api/groups', methods=['GET'])
+@require_admin
+def get_groups():
+    """列出所有群組及其標籤數"""
+    try:
+        rows = supabase.table('tag_groups').select('group_name').execute().data or []
+        from collections import Counter
+        counts = Counter(r['group_name'] for r in rows)
+        result = [{'name': k, 'count': v} for k, v in sorted(counts.items())]
+        return jsonify({'groups': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/api/groups/tags', methods=['GET'])
+@require_admin
+def get_group_tags():
+    """列出某群組的所有標籤（?group=xxx）"""
+    group = request.args.get('group', '')
+    try:
+        rows = supabase.table('tag_groups').select('tag_name,group_name').eq('group_name', group).order('tag_name').execute().data or []
+        return jsonify({'tags': rows})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/api/groups/rename', methods=['POST'])
+@require_admin
+def rename_group():
+    """改群組名稱（整批）"""
+    d = request.get_json()
+    old_name = (d.get('old_name') or '').strip()
+    new_name = (d.get('new_name') or '').strip()
+    if not old_name or not new_name:
+        return jsonify({'ok': False, 'error': 'missing params'}), 400
+    try:
+        supabase.table('tag_groups').update({'group_name': new_name}).eq('group_name', old_name).execute()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/admin/api/groups/merge', methods=['POST'])
+@require_admin
+def merge_groups():
+    """合併：把 source 群組的所有標籤移到 target 群組"""
+    d = request.get_json()
+    source = (d.get('source') or '').strip()
+    target = (d.get('target') or '').strip()
+    if not source or not target:
+        return jsonify({'ok': False, 'error': 'missing params'}), 400
+    try:
+        supabase.table('tag_groups').update({'group_name': target}).eq('group_name', source).execute()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/admin/api/groups/delete', methods=['POST'])
+@require_admin
+def delete_group():
+    """刪除群組：該群組標籤移至「未分群」"""
+    d = request.get_json()
+    name = (d.get('name') or '').strip()
+    if not name or name == '未分群':
+        return jsonify({'ok': False, 'error': 'invalid group'}), 400
+    try:
+        supabase.table('tag_groups').update({'group_name': '未分群'}).eq('group_name', name).execute()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/admin/api/groups/tag', methods=['POST'])
+@require_admin
+def update_tag_group():
+    """修改單一標籤的群組"""
+    d = request.get_json()
+    tag_name  = (d.get('tag_name') or '').strip()
+    group_name = (d.get('group_name') or '').strip()
+    if not tag_name or not group_name:
+        return jsonify({'ok': False, 'error': 'missing params'}), 400
+    try:
+        supabase.table('tag_groups').upsert(
+            {'tag_name': tag_name, 'group_name': group_name},
+            on_conflict='tag_name'
+        ).execute()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/qa/api/tags_with_groups', methods=['GET'])
+@require_qa
+def qa_tags_with_groups():
+    """回傳所有標籤及出現次數，附群組資訊"""
+    try:
+        # 抓所有 tags（分頁）
+        tag_count = {}
+        offset = 0
+        while True:
+            rows = supabase.table('qa_items').select('tags').not_.is_('tags','null').range(offset, offset+999).execute().data or []
+            if not rows: break
+            for r in rows:
+                for t in (r.get('tags') or []):
+                    if t:
+                        tag_count[t] = tag_count.get(t, 0) + 1
+            if len(rows) < 1000: break
+            offset += 1000
+        # 抓群組對應
+        grp_rows = supabase.table('tag_groups').select('tag_name,group_name').execute().data or []
+        grp_map = {r['tag_name']: r['group_name'] for r in grp_rows}
+        result = [
+            {'tag': t, 'count': c, 'group': grp_map.get(t, '未分群')}
+            for t, c in sorted(tag_count.items(), key=lambda x: -x[1])
+        ]
+        return jsonify({'tags': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route("/admin/api/users", methods=["GET"])
 @require_admin
 def get_users():
