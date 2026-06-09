@@ -1237,7 +1237,7 @@ function renameGroup(name){
 
 function mergeGroup(source){
   var targets=allGroups.filter(function(g){return g.name!==source;}).map(function(g){return g.name;});
-  var target=prompt('將「'+source+'」合併至哪個群組？\n選項：'+targets.join('、'));
+  var target=prompt('將「'+source+'」合併至哪個群組？\\n選項：'+targets.join('、'));
   if(!target)return;
   if(!targets.includes(target)){alert('找不到群組「'+target+'」');return;}
   if(!confirm('確定將「'+source+'」所有標籤移至「'+target+'」？'))return;
@@ -1250,7 +1250,7 @@ function mergeGroup(source){
 }
 
 function deleteGroup(name){
-  if(!confirm('刪除群組「'+name+'」？\n其下所有標籤將移至「未分群」'))return;
+  if(!confirm('刪除群組「'+name+'」？\\n其下所有標籤將移至「未分群」'))return;
   fetch('/admin/api/groups/delete',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name})})
   .then(r=>r.json()).then(function(d){
@@ -1588,9 +1588,11 @@ function submitBatch(){
   });
 }
 function downloadUserTemplate(){
-  var content='帳號,密碼,顯示名稱,角色\nstacy,pass123,陳玲儒,客服員\njohn,pass456,王大明,維修技術員';
-  var blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='帳號範本.csv';a.click();
+  var rows=['\u5e33\u865f,\u5bc6\u78bc,\u986f\u793a\u540d\u7a31,\u89d2\u8272','stacy,pass123,\u9673\u73f2\u5112,\u5ba2\u670d\u54e1','john,pass456,\u738b\u5927\u660e,\u7dad\u4fee\u6280\u8853\u54e1'];
+  var crlf=String.fromCharCode(13,10);
+  var bom=String.fromCharCode(65279);
+  var blob=new Blob([bom+rows.join(crlf)],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='\u5e33\u865f\u7bc4\u672c.csv';a.click();
 }
 
 /* ── Token 用量 ── */
