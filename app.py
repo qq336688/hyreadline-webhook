@@ -1110,7 +1110,7 @@ tr:hover td{background:#fafafa}
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號 *</label><input id="addUsr" type="text" placeholder="登入用帳號" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">密碼 *（至少6字元）</label><input id="addPwd" type="password" placeholder="密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="addDisplayName" type="text" placeholder="姓名（顯示用）" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 可進入後台</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_filter" checked> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_category" checked> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_stats" checked> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_token" checked> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_tags" checked> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_groups" checked> 群組管理</label></div></div>
+      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 可進入後台</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_filter" checked> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_category" checked> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_stats" checked> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_token" checked> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_users" checked> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_tags" checked> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_groups" checked> 群組管理</label></div></div>
     </div>
     <div id="addModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
@@ -1213,12 +1213,12 @@ function renderGroups(){
 function createGroup(){
   var name=document.getElementById('newGroupName').value.trim();
   if(!name){alert('請輸入群組名稱');return;}
-  fetch('/admin/api/groups/tag',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({tag_name:'__placeholder__'+name,group_name:name})})
-  .then(r=>r.json()).then(function(){
+  fetch('/admin/api/groups',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name})})
+  .then(r=>r.json()).then(function(d){
+    if(d.error){alert('建立失敗：'+d.error);return;}
     document.getElementById('newGroupName').value='';
     loadGroups();
-    alert('群組已建立（尚無標籤，請從標籤列表指定）');
   });
 }
 
@@ -1884,24 +1884,46 @@ def admin_delete_tag_def(tag_id):
 @app.route('/admin/api/groups', methods=['GET'])
 @require_admin
 def get_groups():
-    """列出所有群組及其標籤數"""
+    """列出所有群組及其標籤數（排除 __def__: 定義列）"""
     try:
-        rows = supabase.table('tag_groups').select('group_name').execute().data or []
-        from collections import Counter
-        counts = Counter(r['group_name'] for r in rows)
-        result = [{'name': k, 'count': v} for k, v in sorted(counts.items())]
+        rows = supabase.table('tag_groups').select('group_name,tag_name').execute().data or []
+        group_counts = {}
+        for r in rows:
+            gn = r['group_name']
+            if gn not in group_counts:
+                group_counts[gn] = 0
+            if not r['tag_name'].startswith('__def__:'):
+                group_counts[gn] += 1
+        result = [{'name': k, 'count': v} for k, v in sorted(group_counts.items())]
         return jsonify({'groups': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/api/groups', methods=['POST'])
+@require_admin
+def create_group():
+    """新增空群組（寫入 __def__:NAME 定義列）"""
+    name = ((request.get_json() or {}).get('name') or '').strip()
+    if not name:
+        return jsonify({'ok': False, 'error': '群組名稱不可空白'}), 400
+    try:
+        supabase.table('tag_groups').upsert(
+            {'tag_name': '__def__:' + name, 'group_name': name},
+            on_conflict='tag_name'
+        ).execute()
+        return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/admin/api/groups/tags', methods=['GET'])
 @require_admin
 def get_group_tags():
-    """列出某群組的所有標籤（?group=xxx）"""
+    """列出某群組的所有標籤（?group=xxx），排除 __def__: 定義列"""
     group = request.args.get('group', '')
     try:
         rows = supabase.table('tag_groups').select('tag_name,group_name').eq('group_name', group).order('tag_name').execute().data or []
-        return jsonify({'tags': rows})
+        filtered = [r for r in rows if not r['tag_name'].startswith('__def__:')]
+        return jsonify({'tags': filtered})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2025,6 +2047,13 @@ def add_user():
             "display_name": (data.get("display_name") or "").strip(),
             "can_query": data.get("can_query", True),
             "can_admin": data.get("can_admin", False),
+            "perm_filter": data.get("perm_filter", True),
+            "perm_category": data.get("perm_category", True),
+            "perm_stats": data.get("perm_stats", True),
+            "perm_token": data.get("perm_token", True),
+            "perm_users": data.get("perm_users", True),
+            "perm_tags": data.get("perm_tags", True),
+            "perm_groups": data.get("perm_groups", True),
             "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
             "is_active": True
         }).execute()
@@ -2050,6 +2079,13 @@ def edit_user(user_id):
         "display_name": (data.get("display_name") or "").strip(),
         "can_query": data.get("can_query", True),
         "can_admin": data.get("can_admin", False),
+        "perm_filter": data.get("perm_filter", True),
+        "perm_category": data.get("perm_category", True),
+        "perm_stats": data.get("perm_stats", True),
+        "perm_token": data.get("perm_token", True),
+        "perm_users": data.get("perm_users", True),
+        "perm_tags": data.get("perm_tags", True),
+        "perm_groups": data.get("perm_groups", True),
         "is_active": data.get("is_active", True)
     }
     if data.get("password"):
@@ -2106,7 +2142,7 @@ def batch_add_users():
                 "perm_category": True,
                 "perm_stats": True,
                 "perm_token": True,
-                "perm_users": False,
+                "perm_users": True,
                 "perm_tags": True,
                 "perm_groups": True,
                 "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
