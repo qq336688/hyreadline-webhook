@@ -388,7 +388,7 @@ function loadTagsSummary(){
       var homeHtml='';
       tags.forEach(function(t){
         var active=selectedTags.indexOf(t.tag)>=0?' active':'';
-        homeHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(\'+esc(t.tag)+'\')">'  +esc(t.tag)+'</span>';
+        homeHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'  +esc(t.tag)+'</span>';
       });
       homeEl.innerHTML=homeHtml;
     }
@@ -542,7 +542,7 @@ function clearSearch(){
   document.getElementById('kw').focus();
   exitBrowse();
   document.getElementById('cntBadge').style.display='none';
-  document.getElementById('results').innerHTML=\'<div class="empty" id="homeState"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字或點選左側標籤開始搜尋</div><div class="chips"><div class="chip" onclick="fill(this.textContent)">召回</div><div class="chip" onclick="fill(this.textContent)">保固</div><div class="chip" onclick="fill(this.textContent)">APP無法登入</div><div class="chip" onclick="fill(this.textContent)">退款</div><div class="chip" onclick="fill(this.textContent)">帳號</div><div class="chip" onclick="fill(this.textContent)">維修</div></div></div>\';
+  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字或點選左側標籤開始搜尋</div><div class="chips"><div class="chip" onclick="fill(this.textContent)">召回</div><div class="chip" onclick="fill(this.textContent)">保固</div><div class="chip" onclick="fill(this.textContent)">APP無法登入</div><div class="chip" onclick="fill(this.textContent)">退款</div><div class="chip" onclick="fill(this.textContent)">帳號</div><div class="chip" onclick="fill(this.textContent)">維修</div></div></div>';
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
