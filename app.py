@@ -1188,20 +1188,30 @@ function loadGroups(){
 function renderGroups(){
   var html='<table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr style="background:#f5f5f5;"><th style="padding:8px 12px;text-align:left;">群組名稱</th><th style="padding:8px 12px;text-align:right;">標籤數</th><th style="padding:8px 12px;text-align:center;">操作</th></tr></thead><tbody>';
   allGroups.forEach(function(g){
-    var esc=g.name.replace(/'/g,"\'");
-    html+='<tr style="border-bottom:1px solid #eee;"><td style="padding:8px 12px;"><span style="cursor:pointer;color:#1a73e8;" onclick="viewGroupTags(\''+esc+'\')">'
-      +g.name+'</span></td>'
+    var attr=g.name.replace(/"/g,'&quot;');
+    html+='<tr style="border-bottom:1px solid #eee;">'
+      +'<td style="padding:8px 12px;"><span class="grp-view" data-n="'+attr+'" style="cursor:pointer;color:#1a73e8;">'+g.name+'</span></td>'
       +'<td style="padding:8px 12px;text-align:right;">'+g.count+'</td>'
       +'<td style="padding:8px 12px;text-align:center;">'
-      +'<button onclick="renameGroup(\''+esc+'\')" style="margin-right:4px;font-size:12px;">改名</button>'
-      +(g.name!=='未分群'?'<button onclick="mergeGroup(\''+esc+'\')" style="margin-right:4px;font-size:12px;">合併至</button>':'')
-      +(g.name!=='未分群'?'<button onclick="deleteGroup(\''+esc+'\')" style="font-size:12px;color:#c62828;">刪除</button>':'')
+      +'<button class="grp-act" data-act="rename" data-n="'+attr+'" style="margin-right:4px;font-size:12px;">改名</button>'
+      +(g.name!=='未分群'?'<button class="grp-act" data-act="merge" data-n="'+attr+'" style="margin-right:4px;font-size:12px;">合併至</button>':'')
+      +(g.name!=='未分群'?'<button class="grp-act" data-act="delete" data-n="'+attr+'" style="font-size:12px;color:#c62828;">刪除</button>':'')
       +'</td></tr>';
   });
   html+='</tbody></table>';
   document.getElementById('groupList').innerHTML=html;
+  document.querySelectorAll('.grp-view').forEach(function(el){
+    el.addEventListener('click',function(){viewGroupTags(this.dataset.n);});
+  });
+  document.querySelectorAll('.grp-act').forEach(function(el){
+    el.addEventListener('click',function(){
+      var n=this.dataset.n,act=this.dataset.act;
+      if(act==='rename')renameGroup(n);
+      else if(act==='merge')mergeGroup(n);
+      else if(act==='delete')deleteGroup(n);
+    });
+  });
 }
-
 function createGroup(){
   var name=document.getElementById('newGroupName').value.trim();
   if(!name){alert('請輸入群組名稱');return;}
@@ -1268,17 +1278,20 @@ function filterGroupTags(){
 
 function renderGroupTags(tags){
   var otherGroups=allGroups.filter(function(g){return g.name!==currentGroup;}).map(function(g){return g.name;});
-  var opts=otherGroups.map(function(g){return '<option value="'+g+'">'+g+'</option>';}).join('');
   var html='';
   tags.forEach(function(t){
-    var esc=t.tag_name.replace(/"/g,'&quot;');
+    var attr=t.tag_name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    var opts=otherGroups.map(function(g){return '<option value="'+g.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+g+'</option>';}).join('');
     html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;">'
       +'<span style="flex:1;font-size:13px;">'+t.tag_name+'</span>'
-      +'<select onchange="moveTag(\''+esc+'\',this.value)" style="font-size:12px;">'
+      +'<select class="mv-tag-sel" data-tag="'+attr+'" style="font-size:12px;">'
       +'<option value="">移至...</option>'+opts+'</select>'
       +'</div>';
   });
   document.getElementById('groupTagList').innerHTML=html||'<p style="color:#999;font-size:13px;">（無標籤）</p>';
+  document.querySelectorAll('.mv-tag-sel').forEach(function(sel){
+    sel.addEventListener('change',function(){moveTag(this.dataset.tag,this.value);});
+  });
 }
 
 function moveTag(tagName,newGroup){
