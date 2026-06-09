@@ -786,34 +786,42 @@ def qa_search():
     if not keyword and not tags and not years:
         return jsonify({"results": [], "total": 0, "page": 1, "total_pages": 0})
     try:
-        # 先用 count=exact 取得總筆數（不受 1000 筆限制）
-        count_q = supabase.table("qa_items").select("id", count="exact")
-        if keyword:
-            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
-            count_q = count_q.or_(or_filter)
-        if years:
-            count_q = count_q.in_("year", years)
-        if tags:
-            for tag in tags:
-                count_q = count_q.contains("tags", [tag])
-        count_res = count_q.execute()
+        # 兩段式搜尋：先搜 q_text+a_text，無結果才擴大到 source_text
+        source_text_fallback = False
+
+        def build_query(base, kw, use_source):
+            if kw:
+                if use_source:
+                    f = "q_text.ilike.%" + kw + "%,a_text.ilike.%" + kw + "%,source_text.ilike.%" + kw + "%"
+                else:
+                    f = "q_text.ilike.%" + kw + "%,a_text.ilike.%" + kw + "%"
+                base = base.or_(f)
+            if years:
+                base = base.in_("year", years)
+            if tags:
+                for tag in tags:
+                    base = base.contains("tags", [tag])
+            return base
+
+        # 第一次：只搜 q_text + a_text
+        count_res = build_query(supabase.table("qa_items").select("id", count="exact"), keyword, False).execute()
         total = count_res.count or 0
+
+        # 無結果且有關鍵字 → 擴大搜尋含 source_text
+        if total == 0 and keyword:
+            count_res = build_query(supabase.table("qa_items").select("id", count="exact"), keyword, True).execute()
+            total = count_res.count or 0
+            source_text_fallback = True
+
         total_pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(page, total_pages))
         start = (page - 1) * page_size
-        # 再取當頁資料
-        data_q = supabase.table("qa_items").select("*")
-        if keyword:
-            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
-            data_q = data_q.or_(or_filter)
-        if years:
-            data_q = data_q.in_("year", years)
-        if tags:
-            for tag in tags:
-                data_q = data_q.contains("tags", [tag])
-        rows = data_q.order("id").range(start, start + page_size - 1).execute().data
+
+        # 取當頁資料
+        rows = build_query(supabase.table("qa_items").select("*"), keyword, source_text_fallback).order("id").range(start, start + page_size - 1).execute().data
         return jsonify({"results": rows, "total": total,
-                        "page": page, "total_pages": total_pages, "page_size": page_size})
+                        "page": page, "total_pages": total_pages, "page_size": page_size,
+                        "source_text_fallback": source_text_fallback})
     except Exception as e:
         print("搜尋失敗：", e, flush=True)
         return jsonify({"results": [], "total": 0, "error": str(e)})
