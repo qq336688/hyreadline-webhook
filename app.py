@@ -37,7 +37,7 @@ def admin_login():
         password = (request.form.get("password") or "")
         result = supabase.table("admin_users").select("*")\
             .eq("username", username).eq("is_active", True).execute()
-        if result.data and check_password_hash(result.data[0]["password_hash"], password):
+        if result.data and check_password_hash(result.data[0]["password_hash"], password) and result.data[0].get("can_admin", True):
             session["admin_logged_in"] = True
             session["admin_username"] = username
             return redirect("/admin")
@@ -103,7 +103,7 @@ def qa_login():
         password = (request.form.get("password") or "")
         result = supabase.table("admin_users").select("*")\
             .eq("username", username).eq("is_active", True).execute()
-        if result.data and check_password_hash(result.data[0]["password_hash"], password):
+        if result.data and check_password_hash(result.data[0]["password_hash"], password) and result.data[0].get("can_query", True):
             session["qa_logged_in"] = True
             session["qa_username"] = username
             return redirect("/qa")
@@ -1049,33 +1049,72 @@ tr:hover td{background:#fafafa}
 
 <!-- 帳號管理 -->
 <div class="panel" id="tab-users">
-  <div class="card" style="margin-bottom:10px;background:#f0fff0;border-color:#a5d6a7">
-    <div style="font-size:12px;color:#2e7d32">ℹ️ 以下帳號同時適用於 <b>管理介面</b> 和 <b>查詢介面（/qa）</b> 的登入。如需新增只能查詢、不能進管理介面的帳號，請聯絡工程師另行設定。</div>
-  </div>
   <div class="card">
-    <div class="card-title">➕ 新增帳號</div>
-    <div class="add-row">
-      <input type="text" id="newUsr" placeholder="帳號" style="width:150px">
-      <input type="password" id="newPwd" placeholder="密碼（至少6個字元）" style="width:200px">
-      <button class="btn-green" onclick="addUser()">新增</button>
+    <div class="card-title" style="justify-content:space-between">
+      <span>👥 帳號管理</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-outline" onclick="downloadUserTemplate()">⬇ 下載範本</button>
+        <button class="btn-outline" onclick="openBatchModal()">📋 批次新增</button>
+        <button class="btn-green" onclick="openAddModal()">＋ 新增帳號</button>
+      </div>
     </div>
-    <div id="userMsg"></div>
-  </div>
-  <div class="card">
-    <div class="card-title">👥 帳號清單</div>
     <table>
-      <thead><tr><th>帳號</th><th>建立時間</th><th>狀態</th><th>操作</th></tr></thead>
-      <tbody id="userTable"><tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+      <thead><tr><th style="width:40px">ID</th><th>帳號</th><th>顯示名稱</th><th>角色/群組</th><th style="width:80px;text-align:center">查詢模組</th><th style="width:80px;text-align:center">後台模組</th><th style="width:60px">狀態</th><th style="width:80px">操作</th></tr></thead>
+      <tbody id="userTableBody"><tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
     </table>
   </div>
-  <div class="card">
-    <div class="card-title">🔑 修改密碼</div>
-    <div class="add-row">
-      <select id="chgUsr" style="width:140px"></select>
-      <input type="password" id="chgPwd" placeholder="新密碼（至少6個字元）" style="width:200px">
-      <button class="btn-green" onclick="changePassword()">修改密碼</button>
+</div>
+
+<!-- 新增帳號 Modal -->
+<div id="userAddModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:420px;max-width:95vw">
+    <div style="font-size:15px;font-weight:500;margin-bottom:20px">＋ 新增帳號</div>
+    <div style="display:grid;gap:12px">
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號 *</label><input id="addUsr" type="text" placeholder="登入用帳號" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">密碼 *（至少6字元）</label><input id="addPwd" type="password" placeholder="密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="addDisplayName" type="text" placeholder="姓名（顯示用）" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">角色/群組</label><input id="addRole" type="text" placeholder="如：客服員、維修技術員..." style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div style="display:flex;gap:20px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 後台模組</label></div>
     </div>
-    <div id="pwdMsg"></div>
+    <div id="addModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+      <button class="btn-outline" onclick="closeAddModal()">取消</button>
+      <button class="btn-green" onclick="submitAddUser()">新增</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯帳號 Modal -->
+<div id="userEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:420px;max-width:95vw">
+    <div style="font-size:15px;font-weight:500;margin-bottom:20px">✏️ 編輯帳號</div>
+    <input type="hidden" id="editUserId">
+    <div style="display:grid;gap:12px">
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號（不可修改）</label><input id="editUsrName" type="text" disabled style="width:100%;padding:8px 10px;border:.5px solid #eee;border-radius:6px;font-size:13px;background:#f9f9f9;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="editDisplayName" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">角色/群組</label><input id="editRole" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 後台模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div>
+    </div>
+    <div id="editModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+      <button class="btn-outline" onclick="closeEditModal()">取消</button>
+      <button class="btn-green" onclick="submitEditUser()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 批次新增 Modal -->
+<div id="userBatchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:540px;max-width:95vw">
+    <div style="font-size:15px;font-weight:500;margin-bottom:8px">📋 批次新增帳號</div>
+    <div style="font-size:12px;color:#777;margin-bottom:14px">每行一個帳號，格式：帳號,密碼,顯示名稱,角色（後兩欄選填）<br>查詢模組預設開啟，後台模組預設關閉。</div>
+    <textarea id="batchCsv" rows="8" placeholder="stacy,pass123,陳玲儒,客服員&#10;john,pass456,王大明,維修技術員" style="width:100%;padding:10px;border:.5px solid #ddd;border-radius:6px;font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+    <div id="batchMsg" style="font-size:12px;margin-top:10px;min-height:18px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn-outline" onclick="closeBatchModal()">取消</button>
+      <button class="btn-green" onclick="submitBatch()">批次新增</button>
+    </div>
   </div>
 </div>
 
@@ -1401,29 +1440,79 @@ function loadStats(){
 
 /* ── 帳號管理 ── */
 function loadUsers(){
-  fetch('/admin/api/users').then(function(r){return r.json()}).then(function(data){
+  fetch('/admin/api/users').then(function(r){return r.json()}).then(function(rows){
     var html='';
-    var selHtml='';
-    data.forEach(function(u){
-      html+='<tr><td>'+esc(u.username)+'</td><td>'+esc(u.created_at||'')+'</td>'
-        +'<td>'+(u.is_active?'<span style="color:#2e7d32">啟用</span>':'<span style="color:#aaa">停用</span>')+'</td>'
-        +'<td><button class="btn-outline" onclick="toggleUser('+u.id+','+(!u.is_active)+')">'+(u.is_active?'停用':'啟用')+'</button>'
-        +' <button class="btn-outline" style="color:#e53935;border-color:#e53935" onclick="delUser('+u.id+')">刪除</button></td></tr>';
-      selHtml+='<option value="'+u.id+'">'+esc(u.username)+'</option>';
+    rows.forEach(function(u){
+      var canQ=u.can_query!==false;
+      var canA=u.can_admin!==false;
+      var active=u.is_active!==false;
+      var statusBadge=active?'<span style="color:#2e7d32;font-weight:500">啟用</span>':'<span style="color:#aaa">停用</span>';
+      var qBadge=canQ?'<span style="color:#1565c0">✓</span>':'<span style="color:#ddd">✗</span>';
+      var aBadge=canA?'<span style="color:#1565c0">✓</span>':'<span style="color:#ddd">✗</span>';
+      var uJson=escAttr(JSON.stringify(u));
+      html+='<tr>'
+        +'<td style="color:#aaa">'+u.id+'</td>'
+        +'<td style="font-weight:500">'+esc(u.username)+'</td>'
+        +'<td>'+esc(u.display_name||'')+'</td>'
+        +'<td><span style="font-size:11px;padding:2px 8px;border-radius:99px;background:#f5f5f5;color:#555">'+esc(u.role||'—')+'</span></td>'
+        +'<td style="text-align:center;font-size:15px">'+qBadge+'</td>'
+        +'<td style="text-align:center;font-size:15px">'+aBadge+'</td>'
+        +'<td>'+statusBadge+'</td>'
+        +'<td><button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="編輯" onclick='openEditModal("'+uJson+'")'>✏️</button>'
+        +'<button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="刪除" onclick="delUser('+u.id+')">🗑</button></td></tr>';
     });
-    document.getElementById('userTable').innerHTML=html||'<tr><td colspan="4" style="color:#aaa;text-align:center;padding:20px">無帳號</td></tr>';
-    document.getElementById('chgUsr').innerHTML=selHtml;
+    document.getElementById('userTableBody').innerHTML=html||'<tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">無帳號</td></tr>';
   });
 }
-function addUser(){
-  var u=document.getElementById('newUsr').value.trim();
-  var p=document.getElementById('newPwd').value;
-  if(!u||p.length<6){showMsg('userMsg','帳號不可為空，密碼至少6個字元',true);return}
+function openAddModal(){
+  ['addUsr','addPwd','addDisplayName','addRole'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('addCanQuery').checked=true;
+  document.getElementById('addCanAdmin').checked=false;
+  document.getElementById('addModalMsg').textContent='';
+  document.getElementById('userAddModal').style.display='flex';
+}
+function closeAddModal(){document.getElementById('userAddModal').style.display='none';}
+function submitAddUser(){
+  var u=document.getElementById('addUsr').value.trim();
+  var p=document.getElementById('addPwd').value;
+  if(!u||p.length<6){document.getElementById('addModalMsg').textContent='帳號不可為空，密碼至少6個字元';return;}
   fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({username:u,password:p})})
+    body:JSON.stringify({username:u,password:p,display_name:document.getElementById('addDisplayName').value.trim(),
+      role:document.getElementById('addRole').value.trim(),
+      can_query:document.getElementById('addCanQuery').checked,
+      can_admin:document.getElementById('addCanAdmin').checked})})
   .then(function(r){return r.json()}).then(function(d){
-    if(d.error){showMsg('userMsg',d.error,true)}
-    else{document.getElementById('newUsr').value='';document.getElementById('newPwd').value='';showMsg('userMsg','新增成功！',false);loadUsers()}
+    if(d.error){document.getElementById('addModalMsg').textContent=d.error;}
+    else{closeAddModal();loadUsers();}
+  });
+}
+function openEditModal(uJson){
+  var u=typeof uJson==='string'?JSON.parse(uJson):uJson;
+  document.getElementById('editUserId').value=u.id;
+  document.getElementById('editUsrName').value=u.username;
+  document.getElementById('editPwd').value='';
+  document.getElementById('editDisplayName').value=u.display_name||'';
+  document.getElementById('editRole').value=u.role||'';
+  document.getElementById('editCanQuery').checked=u.can_query!==false;
+  document.getElementById('editCanAdmin').checked=u.can_admin!==false;
+  document.getElementById('editIsActive').checked=u.is_active!==false;
+  document.getElementById('editModalMsg').textContent='';
+  document.getElementById('userEditModal').style.display='flex';
+}
+function closeEditModal(){document.getElementById('userEditModal').style.display='none';}
+function submitEditUser(){
+  var id=document.getElementById('editUserId').value;
+  var pwd=document.getElementById('editPwd').value;
+  var payload={display_name:document.getElementById('editDisplayName').value.trim(),
+    role:document.getElementById('editRole').value.trim(),
+    can_query:document.getElementById('editCanQuery').checked,
+    can_admin:document.getElementById('editCanAdmin').checked,
+    is_active:document.getElementById('editIsActive').checked};
+  if(pwd){if(pwd.length<6){document.getElementById('editModalMsg').textContent='密碼至少6個字元';return;}payload.password=pwd;}
+  fetch('/admin/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+  .then(function(r){return r.json()}).then(function(d){
+    if(d.error){document.getElementById('editModalMsg').textContent=d.error;}
+    else{closeEditModal();loadUsers();}
   });
 }
 function delUser(id){
@@ -1432,20 +1521,27 @@ function delUser(id){
     if(d.error)alert(d.error);else loadUsers();
   });
 }
-function toggleUser(id,active){
-  fetch('/admin/api/users/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({is_active:active})}).then(function(){loadUsers()});
+function openBatchModal(){
+  document.getElementById('batchCsv').value='';
+  document.getElementById('batchMsg').textContent='';
+  document.getElementById('userBatchModal').style.display='flex';
 }
-function changePassword(){
-  var id=document.getElementById('chgUsr').value;
-  var p=document.getElementById('chgPwd').value;
-  if(!id||p.length<6){showMsg('pwdMsg','請選擇帳號，密碼至少6個字元',true);return}
-  fetch('/admin/api/users/'+id+'/password',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({password:p})})
+function closeBatchModal(){document.getElementById('userBatchModal').style.display='none';}
+function submitBatch(){
+  var csv=document.getElementById('batchCsv').value.trim();
+  if(!csv){document.getElementById('batchMsg').textContent='請輸入資料';return;}
+  fetch('/admin/api/users/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:csv})})
   .then(function(r){return r.json()}).then(function(d){
-    if(d.error){showMsg('pwdMsg',d.error,true)}
-    else{document.getElementById('chgPwd').value='';showMsg('pwdMsg','密碼修改成功！',false)}
+    if(d.error){document.getElementById('batchMsg').style.color='#e53935';document.getElementById('batchMsg').textContent=d.error;}
+    else{document.getElementById('batchMsg').style.color='#2e7d32';document.getElementById('batchMsg').textContent='成功新增 '+d.added+' 筆，跳過 '+d.skipped+' 筆';loadUsers();}
   });
+}
+function downloadUserTemplate(){
+  var content='帳號,密碼,顯示名稱,角色
+stacy,pass123,陳玲儒,客服員
+john,pass456,王大明,維修技術員';
+  var blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='帳號範本.csv';a.click();
 }
 
 /* ── Token 用量 ── */
@@ -1815,7 +1911,7 @@ def qa_tags_with_groups():
 @app.route("/admin/api/users", methods=["GET"])
 @require_admin
 def get_users():
-    result = supabase.table("admin_users").select("id,username,created_at,is_active").order("id").execute()
+    result = supabase.table("admin_users").select("id,username,display_name,role,can_query,can_admin,created_at,is_active").order("id").execute()
     return jsonify(result.data)
 
 @app.route("/admin/api/users", methods=["POST"])
@@ -1830,6 +1926,10 @@ def add_user():
         supabase.table("admin_users").insert({
             "username": username,
             "password_hash": generate_password_hash(password),
+            "display_name": (data.get("display_name") or "").strip(),
+            "role": (data.get("role") or "").strip(),
+            "can_query": data.get("can_query", True),
+            "can_admin": data.get("can_admin", False),
             "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
             "is_active": True
         }).execute()
@@ -1845,6 +1945,24 @@ def delete_user(user_id):
     if me.data and me.data[0]["username"] == session.get("admin_username"):
         return jsonify({"error": "不可刪除自己的帳號"}), 403
     supabase.table("admin_users").delete().eq("id", user_id).execute()
+    return jsonify({"success": True})
+
+@app.route("/admin/api/users/<int:user_id>", methods=["PUT"])
+@require_admin
+def edit_user(user_id):
+    data = request.get_json()
+    update = {
+        "display_name": (data.get("display_name") or "").strip(),
+        "role": (data.get("role") or "").strip(),
+        "can_query": data.get("can_query", True),
+        "can_admin": data.get("can_admin", False),
+        "is_active": data.get("is_active", True)
+    }
+    if data.get("password"):
+        if len(data["password"]) < 6:
+            return jsonify({"error": "密碼至少6個字元"}), 400
+        update["password_hash"] = generate_password_hash(data["password"])
+    supabase.table("admin_users").update(update).eq("id", user_id).execute()
     return jsonify({"success": True})
 
 @app.route("/admin/api/users/<int:user_id>", methods=["PATCH"])
@@ -1865,6 +1983,40 @@ def change_password(user_id):
         "password_hash": generate_password_hash(password)
     }).eq("id", user_id).execute()
     return jsonify({"success": True})
+
+@app.route("/admin/api/users/batch", methods=["POST"])
+@require_admin
+def batch_add_users():
+    csv_text = (request.get_json() or {}).get("csv", "")
+    added = 0
+    skipped = 0
+    errors = []
+    for line in csv_text.strip().splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 2:
+            skipped += 1
+            continue
+        username, password = parts[0], parts[1]
+        display_name = parts[2] if len(parts) > 2 else ""
+        role = parts[3] if len(parts) > 3 else ""
+        if not username or len(password) < 6:
+            skipped += 1
+            continue
+        try:
+            supabase.table("admin_users").insert({
+                "username": username,
+                "password_hash": generate_password_hash(password),
+                "display_name": display_name,
+                "role": role,
+                "can_query": True,
+                "can_admin": False,
+                "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "is_active": True
+            }).execute()
+            added += 1
+        except Exception:
+            skipped += 1
+    return jsonify({"added": added, "skipped": skipped})
 
 # ──────────────────────────────────────────────
 # 管理 API — 過濾詞句
