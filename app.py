@@ -1012,13 +1012,13 @@ tr:hover td{background:#fafafa}
   <a href="/admin/logout" style="margin-left:6px">登出</a>
 </div>
 <div class="tabs">
-  <div class="tab active" onclick="showTab(this,'filter')">🚫 過濾詞句</div>
-  <div class="tab" onclick="showTab(this,'category')">🏷 分類管理</div>
-  <div class="tab" onclick="showTab(this,'stats')">📊 分析總覽</div>
-  <div class="tab" onclick="showTab(this,'token')">⚡ Token 用量</div>
-  <div class="tab" onclick="showTab(this,'users')">👤 帳號管理</div>
-  <div class="tab" onclick="showTab(this,'tagmgr')">🏷️ 標籤管理</div>
-  <div class="tab" onclick="showTab(this,'groupmgr')">🗂️ 群組管理</div>
+  <div class="tab active" data-tab="filter" onclick="showTab(this,'filter')">🚫 過濾詞句</div>
+  <div class="tab" data-tab="category" onclick="showTab(this,'category')">🏷 分類管理</div>
+  <div class="tab" data-tab="stats" onclick="showTab(this,'stats')">📊 分析總覽</div>
+  <div class="tab" data-tab="token" onclick="showTab(this,'token')">⚡ Token 用量</div>
+  <div class="tab" data-tab="users" onclick="showTab(this,'users')">👤 帳號管理</div>
+  <div class="tab" data-tab="tagmgr" onclick="showTab(this,'tagmgr')">🏷️ 標籤管理</div>
+  <div class="tab" data-tab="groupmgr" onclick="showTab(this,'groupmgr')">🗂️ 群組管理</div>
 </div>
 
 <!-- 過濾詞句 -->
@@ -1096,8 +1096,8 @@ tr:hover td{background:#fafafa}
       </div>
     </div>
     <table>
-      <thead><tr><th style="width:40px">ID</th><th>帳號</th><th>顯示名稱</th><th>角色/群組</th><th style="width:80px;text-align:center">查詢模組</th><th style="width:80px;text-align:center">後台模組</th><th style="width:60px">狀態</th><th style="width:80px">操作</th></tr></thead>
-      <tbody id="userTableBody"><tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+      <thead><tr><th style="width:40px">ID</th><th>帳號</th><th>顯示名稱</th><th style="width:80px;text-align:center">查詢模組</th><th style="text-align:center">後台權限</th><th style="width:60px">狀態</th><th style="width:80px">操作</th></tr></thead>
+      <tbody id="userTableBody"><tr><td colspan="7" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -1110,8 +1110,7 @@ tr:hover td{background:#fafafa}
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號 *</label><input id="addUsr" type="text" placeholder="登入用帳號" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">密碼 *（至少6字元）</label><input id="addPwd" type="password" placeholder="密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="addDisplayName" type="text" placeholder="姓名（顯示用）" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">角色/群組</label><input id="addRole" type="text" placeholder="如：客服員、維修技術員..." style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div style="display:flex;gap:20px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 後台模組</label></div>
+      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 可進入後台</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_filter" checked> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_category" checked> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_stats" checked> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_token" checked> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_tags" checked> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_groups" checked> 群組管理</label></div></div>
     </div>
     <div id="addModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
@@ -1130,8 +1129,7 @@ tr:hover td{background:#fafafa}
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號（不可修改）</label><input id="editUsrName" type="text" disabled style="width:100%;padding:8px 10px;border:.5px solid #eee;border-radius:6px;font-size:13px;background:#f9f9f9;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="editDisplayName" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">角色/群組</label><input id="editRole" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 後台模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div>
+      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 可進入後台</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_filter"> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_category"> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_stats"> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_token"> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_tags"> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_groups"> 群組管理</label></div></div>
     </div>
     <div id="editModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
@@ -1156,7 +1154,7 @@ tr:hover td{background:#fafafa}
 </div>
 
 <!-- 群組管理 -->
-<div class="panel" id="tab-groupmgr" style="display:none">
+<div class="panel" id="tab-groupmgr">
   <div class="card">
     <div class="card-title">🗂️ 群組管理</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
@@ -1499,25 +1497,33 @@ function loadUsers(){
       var active=u.is_active!==false;
       var statusBadge=active?'<span style="color:#2e7d32;font-weight:500">啟用</span>':'<span style="color:#aaa">停用</span>';
       var qBadge=canQ?'<span style="color:#1565c0">✓</span>':'<span style="color:#ddd">✗</span>';
-      var aBadge=canA?'<span style="color:#1565c0">✓</span>':'<span style="color:#ddd">✗</span>';
+      var permChips='';
+      if(canA){
+        var pMap={filter:'過濾',category:'分類',stats:'總覽',token:'Token',users:'帳號',tags:'標籤',groups:'群組'};
+        Object.keys(pMap).forEach(function(k){
+          var on=u['perm_'+k]!==false;
+          permChips+='<span style="font-size:10px;padding:1px 5px;border-radius:3px;margin:1px;display:inline-block;background:'+(on?'#e3f2fd':'#f5f5f5')+';color:'+(on?'#1565c0':'#bbb')+'">'+pMap[k]+'</span>';
+        });
+      } else { permChips='<span style="color:#bbb;font-size:11px">—</span>'; }
       html+='<tr>'
         +'<td style="color:#aaa">'+u.id+'</td>'
         +'<td style="font-weight:500">'+esc(u.username)+'</td>'
         +'<td>'+esc(u.display_name||'')+'</td>'
-        +'<td><span style="font-size:11px;padding:2px 8px;border-radius:99px;background:#f5f5f5;color:#555">'+esc(u.role||'—')+'</span></td>'
         +'<td style="text-align:center;font-size:15px">'+qBadge+'</td>'
-        +'<td style="text-align:center;font-size:15px">'+aBadge+'</td>'
+        +'<td style="text-align:center;line-height:1.6">'+permChips+'</td>'
         +'<td>'+statusBadge+'</td>'
         +'<td><button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="編輯" onclick="openEditModal('+u.id+')">✏️</button>'
         +'<button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="刪除" onclick="delUser('+u.id+')">🗑</button></td></tr>';
     });
-    document.getElementById('userTableBody').innerHTML=html||'<tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">無帳號</td></tr>';
+    document.getElementById('userTableBody').innerHTML=html||'<tr><td colspan="7" style="color:#aaa;text-align:center;padding:20px">無帳號</td></tr>';
   });
 }
 function openAddModal(){
-  ['addUsr','addPwd','addDisplayName','addRole'].forEach(function(id){document.getElementById(id).value='';});
+  ['addUsr','addPwd','addDisplayName'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('addCanQuery').checked=true;
   document.getElementById('addCanAdmin').checked=false;
+  ['filter','category','stats','token','tags','groups'].forEach(function(k){document.getElementById('addPerm_'+k).checked=true;});
+  document.getElementById('addPerm_users').checked=false;
   document.getElementById('addModalMsg').textContent='';
   document.getElementById('userAddModal').style.display='flex';
 }
@@ -1528,9 +1534,15 @@ function submitAddUser(){
   if(!u||p.length<6){document.getElementById('addModalMsg').textContent='帳號不可為空，密碼至少6個字元';return;}
   fetch('/admin/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({username:u,password:p,display_name:document.getElementById('addDisplayName').value.trim(),
-      role:document.getElementById('addRole').value.trim(),
       can_query:document.getElementById('addCanQuery').checked,
-      can_admin:document.getElementById('addCanAdmin').checked})})
+      can_admin:document.getElementById('addCanAdmin').checked,
+      perm_filter:document.getElementById('addPerm_filter').checked,
+      perm_category:document.getElementById('addPerm_category').checked,
+      perm_stats:document.getElementById('addPerm_stats').checked,
+      perm_token:document.getElementById('addPerm_token').checked,
+      perm_users:document.getElementById('addPerm_users').checked,
+      perm_tags:document.getElementById('addPerm_tags').checked,
+      perm_groups:document.getElementById('addPerm_groups').checked})})
   .then(function(r){return r.json()}).then(function(d){
     if(d.error){document.getElementById('addModalMsg').textContent=d.error;}
     else{closeAddModal();loadUsers();}
@@ -1543,10 +1555,13 @@ function openEditModal(id){
   document.getElementById('editUsrName').value=u.username;
   document.getElementById('editPwd').value='';
   document.getElementById('editDisplayName').value=u.display_name||'';
-  document.getElementById('editRole').value=u.role||'';
   document.getElementById('editCanQuery').checked=u.can_query!==false;
   document.getElementById('editCanAdmin').checked=u.can_admin!==false;
   document.getElementById('editIsActive').checked=u.is_active!==false;
+  ['filter','category','stats','token','users','tags','groups'].forEach(function(k){
+    var el=document.getElementById('editPerm_'+k);
+    if(el) el.checked=(u['perm_'+k]!==false);
+  });
   document.getElementById('editModalMsg').textContent='';
   document.getElementById('userEditModal').style.display='flex';
 }
@@ -1555,9 +1570,15 @@ function submitEditUser(){
   var id=document.getElementById('editUserId').value;
   var pwd=document.getElementById('editPwd').value;
   var payload={display_name:document.getElementById('editDisplayName').value.trim(),
-    role:document.getElementById('editRole').value.trim(),
     can_query:document.getElementById('editCanQuery').checked,
     can_admin:document.getElementById('editCanAdmin').checked,
+    perm_filter:document.getElementById('editPerm_filter').checked,
+    perm_category:document.getElementById('editPerm_category').checked,
+    perm_stats:document.getElementById('editPerm_stats').checked,
+    perm_token:document.getElementById('editPerm_token').checked,
+    perm_users:document.getElementById('editPerm_users').checked,
+    perm_tags:document.getElementById('editPerm_tags').checked,
+    perm_groups:document.getElementById('editPerm_groups').checked,
     is_active:document.getElementById('editIsActive').checked};
   if(pwd){if(pwd.length<6){document.getElementById('editModalMsg').textContent='密碼至少6個字元';return;}payload.password=pwd;}
   fetch('/admin/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
@@ -1588,7 +1609,7 @@ function submitBatch(){
   });
 }
 function downloadUserTemplate(){
-  var rows=['\u5e33\u865f,\u5bc6\u78bc,\u986f\u793a\u540d\u7a31,\u89d2\u8272','stacy,pass123,\u9673\u73f2\u5112,\u5ba2\u670d\u54e1','john,pass456,\u738b\u5927\u660e,\u7dad\u4fee\u6280\u8853\u54e1'];
+  var rows=['\u5e33\u865f,\u5bc6\u78bc,\u986f\u793a\u540d\u7a31','stacy,pass123,\u9673\u73f2\u5112','john,pass456,\u738b\u5927\u660e'];
   var crlf=String.fromCharCode(13,10);
   var bom=String.fromCharCode(65279);
   var blob=new Blob([bom+rows.join(crlf)],{type:'text/csv;charset=utf-8'});
@@ -1710,6 +1731,21 @@ function syncTagNames(){
 
 /* 預設載入 */
 loadWords();
+/* 依目前登入者的後台權限隱藏無存取權的分頁 */
+(function(){
+  fetch('/admin/api/me').then(function(r){return r.json();}).then(function(p){
+    var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',tagmgr:'tags',groupmgr:'groups'};
+    Object.keys(map).forEach(function(tabName){
+      var permKey='perm_'+map[tabName];
+      if(p[permKey]===false){
+        var tabEl=document.querySelector('.tab[data-tab="'+tabName+'"]');
+        var panelEl=document.getElementById('tab-'+tabName);
+        if(tabEl) tabEl.style.display='none';
+        if(panelEl) panelEl.style.display='none';
+      }
+    });
+  }).catch(function(){});
+})();
 </script></body></html>'''
 
 # ──────────────────────────────────────────────
@@ -1959,6 +1995,15 @@ def qa_tags_with_groups():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route("/admin/api/me", methods=["GET"])
+@require_admin
+def get_me():
+    username = session.get("admin_username", "")
+    result = supabase.table("admin_users").select("perm_filter,perm_category,perm_stats,perm_token,perm_users,perm_tags,perm_groups").eq("username", username).execute()
+    if result.data:
+        return jsonify(result.data[0])
+    return jsonify({})
+
 @app.route("/admin/api/users", methods=["GET"])
 @require_admin
 def get_users():
@@ -1978,7 +2023,6 @@ def add_user():
             "username": username,
             "password_hash": generate_password_hash(password),
             "display_name": (data.get("display_name") or "").strip(),
-            "role": (data.get("role") or "").strip(),
             "can_query": data.get("can_query", True),
             "can_admin": data.get("can_admin", False),
             "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
@@ -2004,7 +2048,6 @@ def edit_user(user_id):
     data = request.get_json()
     update = {
         "display_name": (data.get("display_name") or "").strip(),
-        "role": (data.get("role") or "").strip(),
         "can_query": data.get("can_query", True),
         "can_admin": data.get("can_admin", False),
         "is_active": data.get("is_active", True)
@@ -2049,7 +2092,6 @@ def batch_add_users():
             continue
         username, password = parts[0], parts[1]
         display_name = parts[2] if len(parts) > 2 else ""
-        role = parts[3] if len(parts) > 3 else ""
         if not username or len(password) < 6:
             skipped += 1
             continue
@@ -2058,9 +2100,15 @@ def batch_add_users():
                 "username": username,
                 "password_hash": generate_password_hash(password),
                 "display_name": display_name,
-                "role": role,
                 "can_query": True,
                 "can_admin": False,
+                "perm_filter": True,
+                "perm_category": True,
+                "perm_stats": True,
+                "perm_token": True,
+                "perm_users": False,
+                "perm_tags": True,
+                "perm_groups": True,
                 "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
                 "is_active": True
             }).execute()
