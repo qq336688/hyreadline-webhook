@@ -789,7 +789,7 @@ def qa_search():
         # 先用 count=exact 取得總筆數（不受 1000 筆限制）
         count_q = supabase.table("qa_items").select("id", count="exact")
         if keyword:
-            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
+            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
             count_q = count_q.or_(or_filter)
         if years:
             count_q = count_q.in_("year", years)
@@ -804,7 +804,7 @@ def qa_search():
         # 再取當頁資料
         data_q = supabase.table("qa_items").select("*")
         if keyword:
-            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
+            or_filter = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
             data_q = data_q.or_(or_filter)
         if years:
             data_q = data_q.in_("year", years)
