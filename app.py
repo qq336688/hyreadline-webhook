@@ -250,6 +250,12 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .clear-btn:hover{background:#bdbdbd}
 .meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:#aaa}
 .meta-badge{background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:99px;font-weight:500}
+.sel-tag-bar{display:none;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 12px;background:#f0fff0;border:.5px solid #c8e6c9;border-radius:8px;margin-bottom:8px}
+.sel-tag-bar.has-tags{display:flex}
+.sel-tag-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 10px;background:#e8f5e9;border:.5px solid #a5d6a7;border-radius:99px;font-size:11px;color:#1b5e20}
+.sel-tag-pill span{cursor:pointer;font-size:13px;line-height:1;color:#666;margin-left:2px}
+.sel-tag-pill span:hover{color:#e53935}
+.sel-clear-all{font-size:11px;color:#e53935;border:.5px solid #e53935;border-radius:99px;padding:3px 10px;background:transparent;cursor:pointer;margin-left:auto;white-space:nowrap}
 .results{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .count-row{font-size:12px;color:#888;padding-bottom:6px;border-bottom:.5px solid #eee}
 .card{background:#fff;border:.5px solid #e0e0e0;border-radius:10px;padding:13px 15px}
@@ -358,6 +364,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
         <span id="scopeTxt">查詢範圍：全部年份</span>
         <span id="cntBadge" class="meta-badge" style="display:none"></span>
         <span style="margin-left:auto">直接搜尋資料庫，無需 AI 配額</span>
+      </div>
+      <div class="sel-tag-bar" id="selTagBar">
+        <span style="font-size:11px;color:#555;white-space:nowrap">已選標籤：</span>
+        <span id="selTagPills"></span>
+        <button class="sel-clear-all" onclick="clearTagFilter()">✕ 清除全部</button>
       </div>
     </div>
     <div class="results" id="results">
@@ -481,6 +492,29 @@ function showAllTags(){
   renderTagChips(allTagsData,null);
 }
 
+function renderSelTagBar(){
+  var bar=document.getElementById('selTagBar');
+  var pills=document.getElementById('selTagPills');
+  if(!selectedTags.length){bar.classList.remove('has-tags');pills.innerHTML='';return;}
+  bar.classList.add('has-tags');
+  var html='';
+  selectedTags.forEach(function(t){
+    html+='<span class="sel-tag-pill" data-tag="'+escAttr(t)+'">'+esc(t)+'<span class="rm-sel-tag" title="移除">×</span></span>';
+  });
+  pills.innerHTML=html;
+  document.querySelectorAll('#selTagPills .rm-sel-tag').forEach(function(el){
+    el.addEventListener('click',function(){removeSelTag(this.parentElement.dataset.tag);});
+  });
+}
+function removeSelTag(tag){
+  var idx=selectedTags.indexOf(tag);
+  if(idx>=0)selectedTags.splice(idx,1);
+  document.querySelectorAll('.tag-filter-chip[data-tag="'+tag+'"]').forEach(function(e){e.classList.remove('active');});
+  var cb=document.getElementById('tagClearBtn');
+  if(selectedTags.length>0)cb.classList.add('visible');else cb.classList.remove('visible');
+  renderSelTagBar();
+  if(selectedTags.length>0)_doSearch();else clearSearch();
+}
 function pickHomeTag(tag){
   exitBrowse();
   if(selectedTags.indexOf(tag)<0){
@@ -489,6 +523,7 @@ function pickHomeTag(tag){
     if(chip)chip.classList.add('active');
     document.getElementById('tagClearBtn').classList.add('visible');
   }
+  renderSelTagBar();
   _doSearch();
 }
 
@@ -502,6 +537,7 @@ function toggleTagFilter(el){
   var clearBtn=document.getElementById('tagClearBtn');
   if(selectedTags.length>0)clearBtn.classList.add('visible');
   else clearBtn.classList.remove('visible');
+  renderSelTagBar();
   exitBrowse();
   _doSearch();
 }
@@ -510,6 +546,7 @@ function clearTagFilter(){
   selectedTags=[];
   document.querySelectorAll('.tag-filter-chip.active').forEach(function(e){e.classList.remove('active')});
   document.getElementById('tagClearBtn').classList.remove('visible');
+  renderSelTagBar();
   _doSearch();
 }
 
