@@ -1152,13 +1152,13 @@ function renderGroups(){
   var html='<table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr style="background:#f5f5f5;"><th style="padding:8px 12px;text-align:left;">群組名稱</th><th style="padding:8px 12px;text-align:right;">標籤數</th><th style="padding:8px 12px;text-align:center;">操作</th></tr></thead><tbody>';
   allGroups.forEach(function(g){
     var esc=g.name.replace(/'/g,"\'");
-    html+='<tr style="border-bottom:1px solid #eee;"><td style="padding:8px 12px;"><span style="cursor:pointer;color:#1a73e8;" onclick="viewGroupTags(''+esc+'')">'
+    html+='<tr style="border-bottom:1px solid #eee;"><td style="padding:8px 12px;"><span style="cursor:pointer;color:#1a73e8;" onclick="viewGroupTags(\''+esc+'\')">'
       +g.name+'</span></td>'
       +'<td style="padding:8px 12px;text-align:right;">'+g.count+'</td>'
       +'<td style="padding:8px 12px;text-align:center;">'
-      +'<button onclick="renameGroup(''+esc+'')" style="margin-right:4px;font-size:12px;">改名</button>'
-      +(g.name!=='未分群'?'<button onclick="mergeGroup(''+esc+'')" style="margin-right:4px;font-size:12px;">合併至</button>':'')
-      +(g.name!=='未分群'?'<button onclick="deleteGroup(''+esc+'')" style="font-size:12px;color:#c62828;">刪除</button>':'')
+      +'<button onclick="renameGroup(\''+esc+'\')" style="margin-right:4px;font-size:12px;">改名</button>'
+      +(g.name!=='未分群'?'<button onclick="mergeGroup(\''+esc+'\')" style="margin-right:4px;font-size:12px;">合併至</button>':'')
+      +(g.name!=='未分群'?'<button onclick="deleteGroup(\''+esc+'\')" style="font-size:12px;color:#c62828;">刪除</button>':'')
       +'</td></tr>';
   });
   html+='</tbody></table>';
@@ -1190,8 +1190,7 @@ function renameGroup(name){
 
 function mergeGroup(source){
   var targets=allGroups.filter(function(g){return g.name!==source;}).map(function(g){return g.name;});
-  var target=prompt('將「'+source+'」合併至哪個群組？
-選項：'+targets.join('、'));
+  var target=prompt('將「'+source+'」合併至哪個群組？\n選項：'+targets.join('、'));
   if(!target)return;
   if(!targets.includes(target)){alert('找不到群組「'+target+'」');return;}
   if(!confirm('確定將「'+source+'」所有標籤移至「'+target+'」？'))return;
@@ -1204,8 +1203,7 @@ function mergeGroup(source){
 }
 
 function deleteGroup(name){
-  if(!confirm('刪除群組「'+name+'」？
-其下所有標籤將移至「未分群」'))return;
+  if(!confirm('刪除群組「'+name+'」？\n其下所有標籤將移至「未分群」'))return;
   fetch('/admin/api/groups/delete',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name})})
   .then(r=>r.json()).then(function(d){
@@ -1239,7 +1237,7 @@ function renderGroupTags(tags){
     var esc=t.tag_name.replace(/"/g,'&quot;');
     html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;">'
       +'<span style="flex:1;font-size:13px;">'+t.tag_name+'</span>'
-      +'<select onchange="moveTag(''+esc+'',this.value)" style="font-size:12px;">'
+      +'<select onchange="moveTag(\''+esc+'\',this.value)" style="font-size:12px;">'
       +'<option value="">移至...</option>'+opts+'</select>'
       +'</div>';
   });
