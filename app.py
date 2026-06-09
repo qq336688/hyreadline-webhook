@@ -522,6 +522,9 @@ function updateScopeTxt(){
 /* ── 側欄年份瀏覽 ── */
 function browseYear(el,y){
   browseMode=true;browseYr=y;
+  selectedTags=[];
+  document.querySelectorAll('.tag-filter-chip').forEach(function(e){e.classList.remove('active')});
+  var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.remove('visible');
   document.getElementById('kw').value='';
   document.querySelectorAll('.yr-link').forEach(function(e){e.classList.remove('active')});
   el.classList.add('active');
@@ -542,7 +545,8 @@ function clearSearch(){
   document.getElementById('kw').focus();
   exitBrowse();
   document.getElementById('cntBadge').style.display='none';
-  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:14px;font-weight:500;color:#555;margin-bottom:8px">輸入關鍵字或點選左側標籤開始搜尋</div><div class="chips"><div class="chip" onclick="fill(this.textContent)">召回</div><div class="chip" onclick="fill(this.textContent)">保固</div><div class="chip" onclick="fill(this.textContent)">APP無法登入</div><div class="chip" onclick="fill(this.textContent)">退款</div><div class="chip" onclick="fill(this.textContent)">帳號</div><div class="chip" onclick="fill(this.textContent)">維修</div></div></div>';
+  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:10px">點選標籤篩選</div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
+  if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl){var hHtml='';allTagsData.forEach(function(t){var act=selectedTags.indexOf(t.tag)>=0?' active':'';hHtml+='<span class="tag-filter-chip'+act+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'+esc(t.tag)+'</span>';});hEl.innerHTML=hHtml;}}
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
