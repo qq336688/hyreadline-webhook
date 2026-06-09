@@ -388,7 +388,7 @@ function loadTagsSummary(){
       var homeHtml='';
       tags.forEach(function(t){
         var active=selectedTags.indexOf(t.tag)>=0?' active':'';
-        homeHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(''+esc(t.tag)+'')">'  +esc(t.tag)+'</span>';
+        homeHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(\'+esc(t.tag)+'\')">'  +esc(t.tag)+'</span>';
       });
       homeEl.innerHTML=homeHtml;
     }
