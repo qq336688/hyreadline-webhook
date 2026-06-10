@@ -357,7 +357,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   <main>
     <div class="search-bar">
       <div class="search-row">
-        <input class="kw-input" id="kw" placeholder="輸入關鍵字，例如：召回、APP無法登入、保固..."
+        <input class="kw-input" id="kw" placeholder="輸入關鍵字，例如：無法登入、點數..."
           onkeydown="if(event.key===\'Enter\')search()">
         <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
         <button class="clear-btn" onclick="clearSearch()" title="清除">&#x2715;</button>
@@ -602,14 +602,17 @@ function openPopover(itemId, btnEl){
   }).join('');
   var rect=btnEl.getBoundingClientRect();
   pop.style.display='block';
-  var popH=260;var popW=360;
+  var popH=Math.min(260,pop.scrollHeight||260);var popW=360;
   var spaceBelow=window.innerHeight-rect.bottom-8;
-  if(spaceBelow>=80){
+  var spaceAbove=rect.top-8;
+  if(spaceBelow>=popH||spaceBelow>=spaceAbove){
     pop.style.top=(rect.bottom+6)+'px';
     pop.style.bottom='';
+    pop.style.maxHeight=Math.max(120,spaceBelow-8)+'px';
   }else{
-    pop.style.bottom=(window.innerHeight-rect.top+6)+'px';
     pop.style.top='';
+    pop.style.bottom=(window.innerHeight-rect.top+6)+'px';
+    pop.style.maxHeight=Math.max(120,spaceAbove-8)+'px';
   }
   var left=Math.min(rect.left, window.innerWidth-popW-12);
   pop.style.left=Math.max(8,left)+'px';
