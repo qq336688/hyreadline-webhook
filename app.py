@@ -244,7 +244,7 @@ aside{width:260px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8
 .side-tab-btn{padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;border:.5px solid transparent;color:#888;background:transparent;white-space:nowrap;font-family:inherit}
 .side-tab-btn:hover{background:#f0f0f0;color:#333}
 .side-tab-btn.active{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;font-weight:500}
-.home-tab-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;background:#f4f4f4;border-radius:8px;padding:7px 10px}
+.home-tab-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;background:#e0e0e0;border-radius:8px;padding:7px 10px;border:.5px solid #ccc}
 .home-tab-btn{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:.5px solid #ddd;color:#666;background:#fff;white-space:nowrap;font-family:inherit}
 .home-tab-btn:hover{border-color:#00b900;color:#1b5e20}
 .home-tab-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
@@ -1304,10 +1304,11 @@ tr:hover td{background:#fafafa}
     <div class="card-title">🗂️ 群組管理</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
+      <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
       <button onclick="createGroup()" style="margin-left:auto;">＋ 新增群組</button>
     </div>
     <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
-    <div id="dragBoard" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
+    <div id="dragBoard" style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
   </div>
 </div>
 <script>
@@ -1343,7 +1344,7 @@ function renderDragBoard(){
   orderedGrps.forEach(function(grpName){
     var tags=(allGroupsData[grpName]||[]).slice().sort();
     var col=document.createElement('div');
-    col.style.cssText='min-width:160px;max-width:220px;flex:1;border-radius:8px;border:0.5px solid #e0e0e0;overflow:hidden;background:#fafafa;';
+    col.style.cssText='min-width:200px;max-width:340px;flex:1;border-radius:8px;border:0.5px solid #e0e0e0;overflow:hidden;background:#fafafa;';
     var hdr='<div style="padding:7px 10px;background:#f0f0f0;border-bottom:0.5px solid #e0e0e0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">'
       +'<span style="font-size:13px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtmlG(grpName)+'</span>'
       +'<span style="font-size:10px;background:#e8f5e9;color:#1b5e20;padding:1px 6px;border-radius:9px;">'+tags.length+'</span>'
@@ -1465,6 +1466,20 @@ function confirmAdminRename(forceMerge){
   }).catch(function(){alert('網路錯誤');});
 }
 document.addEventListener('click',function(e){if(_admRenPopEl&&!_admRenPopEl.contains(e.target))closeAdminRenamePopup();});
+
+function cleanupGhostTags(){
+  if(!confirm('將刪除 tag_groups 中所有未被任何 QA 使用的標籤，確定執行？'))return;
+  var btn=document.getElementById('cleanupBtn');
+  if(btn){btn.textContent='清理中...';btn.disabled=true;}
+  fetch('/admin/api/groups/cleanup',{method:'POST'})
+  .then(function(r){return r.json();}).then(function(d){
+    if(btn){btn.textContent='🧹 清除幽靈標籤';btn.disabled=false;}
+    if(d.ok){
+      showDragLog('清理完成，共刪除 '+d.deleted+' 個幽靈標籤');
+      loadGroups();
+    }else{alert('清理失敗：'+(d.error||''));}
+  }).catch(function(){if(btn){btn.textContent='🧹 清除幽靈標籤';btn.disabled=false;}alert('網路錯誤');});
+}
 
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
@@ -1966,6 +1981,35 @@ def admin_delete_tag_def(tag_id):
 # ──────────────────────────────────────────────
 
 # ── 群組管理 API ────────────────────────────────────────────────────
+
+@app.route('/admin/api/groups/cleanup', methods=['POST'])
+@require_admin
+def cleanup_ghost_tags():
+    """刪除 tag_groups 中未被任何 qa_items 使用的幽靈 tag"""
+    try:
+        # 1. 蒐集所有 qa_items 實際使用的 tags
+        used = set()
+        offset = 0
+        while True:
+            rows = supabase.table('qa_items').select('tags').not_.is_('tags','null').range(offset, offset+999).execute().data or []
+            for r in rows:
+                for t in (r.get('tags') or []):
+                    if t: used.add(t)
+            if len(rows) < 1000: break
+            offset += 1000
+        # 2. 蒐集 tag_groups 所有非 __def__ 的 tag_name
+        tg_rows = supabase.table('tag_groups').select('tag_name').execute().data or []
+        ghost = [r['tag_name'] for r in tg_rows
+                 if not r['tag_name'].startswith('__def__:') and r['tag_name'] not in used]
+        # 3. 批次刪除
+        deleted = 0
+        for i in range(0, len(ghost), 50):
+            batch = ghost[i:i+50]
+            supabase.table('tag_groups').delete().in_('tag_name', batch).execute()
+            deleted += len(batch)
+        return jsonify({'ok': True, 'deleted': deleted})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @app.route('/admin/api/groups', methods=['GET'])
 @require_admin
