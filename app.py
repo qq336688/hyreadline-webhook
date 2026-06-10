@@ -385,7 +385,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
         <div style="width:100%;max-width:700px;margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div>
-            <button id="homeClearBtn" class="tag-clear-btn" onclick="clearTagFilter()" style="width:auto;margin-top:0;display:none">✕ 清除篩選</button>
+            <button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button>
           </div>
           <div id="homeTabBar" class="home-tab-bar"></div>
           <div id="homeTagChips" class="chips" style="justify-content:flex-start"></div>
@@ -531,7 +531,6 @@ function pickHomeTag(tag){
     var chip=document.querySelector('.tag-filter-chip[data-tag="'+tag+'"]');
     if(chip)chip.classList.add('active');
     var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.add('visible');
-    var hcb=document.getElementById('homeClearBtn');if(hcb)hcb.style.display='';
   }
   renderSelTagBar();
   _doSearch();
@@ -546,7 +545,7 @@ function toggleTagFilter(el){
   else{selectedTags.push(tag);el.classList.add('active');}
   var clearBtn=document.getElementById('tagClearBtn');
   if(selectedTags.length>0)clearBtn.classList.add('visible');else clearBtn.classList.remove('visible');
-  var hcb=document.getElementById('homeClearBtn');if(hcb)hcb.style.display=selectedTags.length?'':'none';
+
   renderSelTagBar();
   exitBrowse();
   _doSearch();
@@ -556,7 +555,6 @@ function clearTagFilter(){
   selectedTags=[];
   document.querySelectorAll('.tag-filter-chip.active').forEach(function(e){e.classList.remove('active')});
   var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.remove('visible');
-  var hcb=document.getElementById('homeClearBtn');if(hcb)hcb.style.display='none';
   renderSelTagBar();
   var kw=document.getElementById('kw').value.trim();
   if(!kw&&!browseMode)clearSearch();else _doSearch();
@@ -658,7 +656,7 @@ function clearSearch(){
   document.getElementById('kw').focus();
   exitBrowse();
   document.getElementById('cntBadge').style.display='none';
-  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div><button id="homeClearBtn" class="tag-clear-btn" onclick="clearTagFilter()" style="width:auto;margin-top:0;display:none">✕ 清除篩選</button></div><div id="homeTabBar" class="home-tab-bar"></div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
+  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div><button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button></div><div id="homeTabBar" class="home-tab-bar"></div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
   if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
