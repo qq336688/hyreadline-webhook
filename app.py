@@ -1220,6 +1220,13 @@ tr:hover td{background:#fafafa}
       <span id="reparseMsg" style="font-size:12px;color:#2e7d32"></span>
     </div>
   </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title" style="justify-content:space-between">
+      <span>📋 歷年 QA 筆數</span>
+      <button class="btn-outline" onclick="loadQaYearCount()" id="qaYearRefreshBtn">🔄 更新數據</button>
+    </div>
+    <div id="qaYearCountArea" style="font-size:12px;color:#aaa;">載入中...</div>
+  </div>
   <div class="stat-grid" id="statCards"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card">
@@ -1555,7 +1562,7 @@ function showTab(el,name){
   document.getElementById('tab-'+name).classList.add('active');
   if(name==='filter')loadWords();
   if(name==='category')loadCategories();
-  if(name==='stats')loadStats();
+  if(name==='stats'){loadStats();loadQaYearCount();}
   if(name==='token')loadTokens();
   if(name==='users')loadUsers();
   if(name==='groupmgr')loadGroups();
@@ -1651,7 +1658,7 @@ function reparse(){
     btn.disabled=false;btn.textContent='▶ 立即補跑解析';
     if(d.success){
       document.getElementById('reparseMsg').textContent='✅ '+d.message;
-      loadStats();
+      loadStats();loadQaYearCount();
     } else {
       document.getElementById('reparseMsg').style.color='#e53935';
       document.getElementById('reparseMsg').textContent='失敗：'+d.error;
@@ -1691,6 +1698,43 @@ function loadStats(){
       cHtml+='<div class="bar-row"><div class="bar-name">'+esc(c[0])+'</div><div class="bar-wrap"><div class="bar-fill" style="width:'+(c[1]/maxC*100)+'%;background:#1565c0"></div></div><div class="bar-val">'+c[1]+'</div></div>';
     });
     document.getElementById('catChart').innerHTML=cHtml||'<div style="color:#aaa;font-size:13px">無分類資料</div>';
+  });
+}
+
+function loadQaYearCount(){
+  var area=document.getElementById('qaYearCountArea');
+  var btn=document.getElementById('qaYearRefreshBtn');
+  if(area)area.innerHTML='<span style="color:#aaa">載入中...</span>';
+  if(btn)btn.disabled=true;
+  fetch('/admin/api/qa_year_count').then(function(r){return r.json();}).then(function(d){
+    if(btn)btn.disabled=false;
+    if(!d.ok){if(area)area.textContent='載入失敗：'+(d.error||'');return;}
+    var html='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'
+      +'<span style="font-size:11px;color:#555;">合計：</span>'
+      +'<span style="font-weight:600;color:#1b5e20;font-size:13px;">'+d.total+' 筆</span></div>';
+    html+='<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+      +'<thead><tr>'
+      +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-weight:500">年份</th>'
+      +'<th style="text-align:right;padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-weight:500">QA 筆數</th>'
+      +'<th style="padding:4px 8px;border-bottom:1px solid #eee;"></th>'
+      +'</tr></thead><tbody>';
+    var maxC=Math.max.apply(null,d.rows.map(function(r){return r.count}))||1;
+    d.rows.forEach(function(r){
+      var pct=Math.round(r.count/maxC*100);
+      html+='<tr>'
+        +'<td style="padding:5px 8px;color:#333;">'+r.year+'</td>'
+        +'<td style="text-align:right;padding:5px 8px;font-weight:500;color:#1b5e20;">'+r.count+'</td>'
+        +'<td style="padding:5px 8px;width:160px">'
+        +'<div style="background:#e8f5e9;border-radius:4px;height:8px;">'
+        +'<div style="background:#43a047;border-radius:4px;height:8px;width:'+pct+'%"></div>'
+        +'</div></td>'
+        +'</tr>';
+    });
+    html+='</tbody></table>';
+    if(area)area.innerHTML=html;
+  }).catch(function(){
+    if(btn)btn.disabled=false;
+    if(area)area.textContent='連線失敗';
   });
 }
 
@@ -2210,7 +2254,7 @@ def get_me():
 @app.route("/admin/api/users", methods=["GET"])
 @require_admin
 def get_users():
-    result = supabase.table("admin_users").select("id,username,display_name,role,can_query,can_admin,created_at,is_active").order("id").execute()
+    result = supabase.table("admin_users").select("id,username,display_name,role,can_query,can_admin,created_at,is_active,perm_filter,perm_category,perm_stats,perm_token,perm_users,perm_tags,perm_groups").order("id").execute()
     return jsonify(result.data)
 
 @app.route("/admin/api/users", methods=["POST"])
@@ -2412,6 +2456,30 @@ def get_stats():
             if c:
                 cat_stats[c] = cat_stats.get(c, 0) + 1
     return jsonify({"year_stats": year_stats, "category_stats": cat_stats})
+
+@app.route("/admin/api/qa_year_count", methods=["GET"])
+@require_admin
+def get_qa_year_count():
+    """從 qa_items 統計各年份 QA 筆數（分頁）"""
+    try:
+        counts = {}
+        offset = 0
+        while True:
+            rows = supabase.table("qa_items").select("year").range(offset, offset+999).execute().data or []
+            if not rows: break
+            for r in rows:
+                yr = r.get("year") or "未知"
+                counts[yr] = counts.get(yr, 0) + 1
+            if len(rows) < 1000: break
+            offset += 1000
+        total = sum(counts.values())
+        result = [
+            {"year": yr, "count": counts[yr]}
+            for yr in sorted(counts.keys())
+        ]
+        return jsonify({"ok": True, "rows": result, "total": total})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 # ──────────────────────────────────────────────
 # 管理 API — Token 用量統計
