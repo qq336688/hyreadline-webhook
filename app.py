@@ -1404,15 +1404,22 @@ var _admRenPopEl=null;
 function openAdminRenamePopup(btn){
   if(_admRenPopEl){_admRenPopEl.remove();_admRenPopEl=null;}
   var tag=btn.dataset.tag;
+  var rect=btn.getBoundingClientRect();
   var pop=document.createElement('div');
-  pop.className='rename-popup';
-  pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:5px">全域改名（所有 QA 同步）</div>'
-    +'<input id="_admRenInp" data-old="'+escAttrG(tag)+'" value="'+escHtmlG(tag)+'" />'
-    +'<div class="rename-popup-row">'
-    +'<button class="ok" onclick="confirmAdminRename()">確認</button>'
-    +'<button onclick="closeAdminRenamePopup()">取消</button>'
+  pop.style.cssText='position:fixed;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px 12px;z-index:9999;min-width:210px;box-shadow:0 2px 12px rgba(0,0,0,.15);';
+  pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:6px">全域改名（所有 QA 同步）</div>'
+    +'<input id="_admRenInp" data-old="'+escAttrG(tag)+'" value="'+escHtmlG(tag)+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:8px;" />'
+    +'<div style="display:flex;gap:5px;">'
+    +'<button onclick="confirmAdminRename()" style="font-size:11px;padding:4px 10px;border-radius:6px;background:#00b900;border:none;color:#fff;cursor:pointer;">確認</button>'
+    +'<button onclick="closeAdminRenamePopup()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer;">取消</button>'
     +'</div>';
-  btn.closest('span').appendChild(pop);
+  var top=rect.bottom+4;
+  var left=rect.left;
+  if(top+120>window.innerHeight)top=rect.top-120;
+  if(left+220>window.innerWidth)left=window.innerWidth-225;
+  pop.style.top=top+'px';
+  pop.style.left=Math.max(4,left)+'px';
+  document.body.appendChild(pop);
   _admRenPopEl=pop;
   var inp=document.getElementById('_admRenInp');
   if(inp){inp.focus();inp.select();}
