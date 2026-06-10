@@ -244,7 +244,7 @@ aside{width:260px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8
 .side-tab-btn{padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;border:.5px solid transparent;color:#888;background:transparent;white-space:nowrap;font-family:inherit}
 .side-tab-btn:hover{background:#f0f0f0;color:#333}
 .side-tab-btn.active{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;font-weight:500}
-.home-tab-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.home-tab-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;background:#f4f4f4;border-radius:8px;padding:7px 10px}
 .home-tab-btn{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:.5px solid #ddd;color:#666;background:#fff;white-space:nowrap;font-family:inherit}
 .home-tab-btn:hover{border-color:#00b900;color:#1b5e20}
 .home-tab-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
@@ -284,7 +284,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .a-lbl{font-size:10px;color:#aaa;margin-bottom:4px}
 .a-txt{font-size:12px;color:#555;line-height:1.75;border-left:2px solid #00b900;padding-left:10px}
 .hi{background:#fff176;border-radius:2px;padding:0 1px}
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:#bbb;font-size:13px;gap:8px;text-align:center;padding:20px}
+.empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:1;color:#bbb;font-size:13px;gap:8px;text-align:left;padding:20px 24px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
 .chip{padding:7px 14px;border:.5px solid #ddd;border-radius:99px;font-size:12px;color:#666;cursor:pointer;background:#fff}
 .chip:hover{border-color:#00b900;color:#1b5e20}
@@ -389,7 +389,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
       <div class="empty" id="homeState">
         <div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
         <div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div>
-        <div style="width:100%;max-width:700px;margin-bottom:14px">
+        <div style="width:100%;margin-bottom:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div>
             <button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button>
@@ -670,7 +670,7 @@ function clearSearch(){
   document.getElementById('kw').focus();
   exitBrowse();
   document.getElementById('cntBadge').style.display='none';
-  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div><button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button></div><div id="homeTabBar" class="home-tab-bar"></div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
+  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div><button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button></div><div id="homeTabBar" class="home-tab-bar"></div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
   if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
