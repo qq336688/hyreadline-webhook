@@ -1228,15 +1228,9 @@ tr:hover td{background:#fafafa}
     <div id="qaYearCountArea" style="font-size:12px;color:#aaa;">載入中...</div>
   </div>
   <div class="stat-grid" id="statCards"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div class="card">
-      <div class="card-title">📅 各年度資料量</div>
-      <div id="yearChart"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">🏷 問題分類分布</div>
-      <div id="catChart"></div>
-    </div>
+  <div class="card">
+    <div class="card-title">📅 各年度資料量</div>
+    <div id="yearChart"></div>
   </div>
 </div>
 
@@ -1679,7 +1673,7 @@ function loadStats(){
       '<div class="stat-card"><div class="stat-num">'+totalBatches+'</div><div class="stat-lbl">已整理批次</div></div>'
       +'<div class="stat-card"><div class="stat-num">'+totalMsgs+'</div><div class="stat-lbl">訊息總數</div></div>'
       +'<div class="stat-card"><div class="stat-num">'+Object.keys(d.year_stats).length+'</div><div class="stat-lbl">涵蓋年份</div></div>'
-      +'<div class="stat-card"><div class="stat-num">'+Object.keys(d.category_stats).length+'</div><div class="stat-lbl">問題類別數</div></div>';
+;
 
     /* 年度長條圖 */
     var maxM=Math.max.apply(null,Object.values(d.year_stats).map(function(v){return v.msgs}))||1;
@@ -1690,14 +1684,6 @@ function loadStats(){
     });
     document.getElementById('yearChart').innerHTML=yHtml||'<div style="color:#aaa;font-size:13px">無資料</div>';
 
-    /* 分類長條圖 */
-    var cats=Object.entries(d.category_stats).sort(function(a,b){return b[1]-a[1]}).slice(0,10);
-    var maxC=(cats[0]||[0,1])[1]||1;
-    var cHtml='';
-    cats.forEach(function(c){
-      cHtml+='<div class="bar-row"><div class="bar-name">'+esc(c[0])+'</div><div class="bar-wrap"><div class="bar-fill" style="width:'+(c[1]/maxC*100)+'%;background:#1565c0"></div></div><div class="bar-val">'+c[1]+'</div></div>';
-    });
-    document.getElementById('catChart').innerHTML=cHtml||'<div style="color:#aaa;font-size:13px">無分類資料</div>';
   });
 }
 
