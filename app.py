@@ -1100,7 +1100,6 @@ tr:hover td{background:#fafafa}
     <div class="card-title" style="justify-content:space-between">
       <span>👥 帳號管理</span>
       <div style="display:flex;gap:8px">
-        <button class="btn-outline" onclick="downloadUserTemplate()">⬇ 下載範本</button>
         <button class="btn-outline" onclick="openBatchModal()">📋 批次新增</button>
         <button class="btn-green" onclick="openAddModal()">＋ 新增帳號</button>
       </div>
@@ -1181,13 +1180,17 @@ var allGroupsData={};
 var dragState={};
 
 function loadGroups(){
+  var board=document.getElementById('dragBoard');
+  if(board)board.innerHTML='<span style="font-size:12px;color:#aaa;padding:8px;">載入中...</span>';
   fetch('/admin/api/groups/all_tags').then(r=>r.json()).then(d=>{
+    if(d.error){if(board)board.innerHTML='<span style="font-size:12px;color:#e53935;">載入失敗：'+d.error+'</span>';return;}
     allGroupsData=d.groups||{};
     allGroups=Object.keys(allGroupsData).map(function(name){
       return {name:name,count:allGroupsData[name].length};
     });
+    if(!allGroups.length&&board){board.innerHTML='<span style="font-size:12px;color:#aaa;">尚無群組資料（請先執行標籤同步）</span>';return;}
     renderDragBoard();
-  });
+  }).catch(function(e){if(board)board.innerHTML='<span style="font-size:12px;color:#e53935;">連線失敗</span>';});
 }
 
 function escAttrG(s){return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
@@ -1607,13 +1610,7 @@ function submitBatch(){
     else{document.getElementById('batchMsg').style.color='#2e7d32';document.getElementById('batchMsg').textContent='成功新增 '+d.added+' 筆，跳過 '+d.skipped+' 筆';loadUsers();}
   });
 }
-function downloadUserTemplate(){
-  var rows=['\u5e33\u865f,\u5bc6\u78bc,\u986f\u793a\u540d\u7a31','stacy,pass123,\u9673\u73f2\u5112','john,pass456,\u738b\u5927\u660e'];
-  var crlf=String.fromCharCode(13,10);
-  var bom=String.fromCharCode(65279);
-  var blob=new Blob([bom+rows.join(crlf)],{type:'text/csv;charset=utf-8'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='\u5e33\u865f\u7bc4\u672c.csv';a.click();
-}
+
 
 /* ── Token 用量 ── */
 function loadTokens(){
@@ -1931,16 +1928,22 @@ def get_group_tags():
 def get_all_group_tags():
     """返回所有群組的標籤清單 {group_name: [tag_names]}"""
     try:
-        rows = supabase.table('tag_groups').select('tag_name,group_name').execute().data or []
         result = {}
-        for r in rows:
-            if r['tag_name'].startswith('__def__:'):
-                continue
-            gn = r['group_name']
-            if gn not in result:
-                result[gn] = []
-            result[gn].append(r['tag_name'])
-        return jsonify({'groups': result})
+        offset = 0
+        batch = 1000
+        while True:
+            rows = supabase.table('tag_groups').select('tag_name,group_name').range(offset, offset + batch - 1).execute().data or []
+            for r in rows:
+                if r['tag_name'].startswith('__def__:'):
+                    continue
+                gn = r['group_name']
+                if gn not in result:
+                    result[gn] = []
+                result[gn].append(r['tag_name'])
+            if len(rows) < batch:
+                break
+            offset += batch
+        return jsonify({'groups': result, 'total': sum(len(v) for v in result.values())})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
