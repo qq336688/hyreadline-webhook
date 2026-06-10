@@ -299,6 +299,13 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .tag-edit{display:inline-flex;align-items:center;gap:3px}
 .tag-del{cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;line-height:1;color:#666;transition:background .15s,transform .15s;border:none;padding:0;flex-shrink:0}
 .tag-del:hover{background:#e53935;color:#fff;transform:scale(1.2)}
+.tag-ren{cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;line-height:1;color:#388e3c;transition:background .15s,transform .15s;border:none;padding:0;flex-shrink:0}
+.tag-ren:hover{background:#c8e6c9;color:#1b5e20;transform:scale(1.2)}
+.rename-popup{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--surface,#fff);border:1px solid #ddd;border-radius:8px;padding:8px 10px;z-index:100;white-space:nowrap;min-width:170px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.rename-popup input{width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:6px}
+.rename-popup-row{display:flex;gap:4px}
+.rename-popup-row button{font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+.rename-popup-row button.ok{background:#00b900;border-color:#00b900;color:#fff}
 .tag-add{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 8px;border-radius:99px;border:1px dashed #aaa;color:#aaa;cursor:pointer;background:transparent;transition:border-color .15s,color .15s,transform .15s}
 .tag-add:hover{border-color:#00b900;color:#00b900;transform:scale(1.05)}
 /* ── 編輯模式 topbar 指示 ── */
@@ -702,8 +709,9 @@ function renderTagsHtml(itemId, tags){
   var html='<div class="card-tags" id="tags-'+itemId+'">';
   if(editMode){
     arr.forEach(function(t){
-      html+='<span class="tag tag-cat tag-edit">'
+      html+='<span class="tag tag-cat tag-edit" style="position:relative">'
         +esc(t)
+        +'<button class="tag-ren" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="openRenamePopup(this)" title="改名">✏</button>'
         +'<button class="tag-del" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handleDelTag(this)" title="移除">✕</button>'
         +'</span>';
     });
@@ -801,6 +809,61 @@ function handleDelTag(el){
 function handlePopTag(el){
   addTag(parseInt(el.dataset.id), el.dataset.tag);
 }
+
+var _renamePopupEl=null;
+function openRenamePopup(btn){
+  closeRenamePopup();
+  var tag=btn.dataset.tag;
+  var itemId=parseInt(btn.dataset.id);
+  var pop=document.createElement('div');
+  pop.className='rename-popup';
+  pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:5px">全域改名（所有 QA 同步）</div>'
+    +'<input id="_renInp" data-old="'+esc(tag)+'" value="'+esc(tag)+'" />'
+    +'<div class="rename-popup-row">'
+    +'<button class="ok" onclick="confirmRename()">確認</button>'
+    +'<button onclick="closeRenamePopup()">取消</button>'
+    +'</div>';
+  btn.closest('span').appendChild(pop);
+  _renamePopupEl=pop;
+  var inp=document.getElementById('_renInp');
+  if(inp){inp.focus();inp.select();}
+  pop.addEventListener('click',function(e){e.stopPropagation();});
+}
+function closeRenamePopup(){
+  if(_renamePopupEl){_renamePopupEl.remove();_renamePopupEl=null;}
+}
+function confirmRename(){
+  var inp=document.getElementById('_renInp');
+  if(!inp)return;
+  var oldName=inp.dataset.old||'';
+  var newName=inp.value.trim();
+  if(!newName){alert('新名稱不可空白');return;}
+  if(newName===oldName){closeRenamePopup();return;}
+  fetch('/qa/api/rename_tag',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({old_name:oldName,new_name:newName})})
+  .then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      closeRenamePopup();
+      var affected=d.updated||0;
+      document.querySelectorAll('[data-tag="'+oldName+'"]').forEach(function(el){
+        el.dataset.tag=newName;
+        var span=el.closest('span.tag');
+        if(span){
+          var txt=span.childNodes[0];
+          if(txt&&txt.nodeType===3)txt.textContent=newName;
+        }
+      });
+      Object.keys(cardTags).forEach(function(id){
+        cardTags[id]=cardTags[id].map(function(t){return t===oldName?newName:t;});
+      });
+      if(affected>0){
+        loadSidebarTags();
+        loadHomeTags();
+      }
+    }else{alert('改名失敗：'+(d.error||'未知錯誤'));}
+  }).catch(function(){alert('網路錯誤');});
+}
+document.addEventListener('click',function(){closeRenamePopup();});
 </script></body></html>'''
 
 # ──────────────────────────────────────────────
@@ -940,7 +1003,7 @@ def qa_search():
 @app.route("/qa/api/update_tags", methods=["POST"])
 @require_qa
 def qa_update_tags():
-    """更新單筆 qa_items 的 tags 陣列"""
+    """更新單筆 qa_items 的 tags 陣列，並同步 tag_groups"""
     data = request.get_json()
     item_id = data.get("id")
     tags    = data.get("tags", [])
@@ -950,10 +1013,61 @@ def qa_update_tags():
         tags = []
     tags = [str(t).strip() for t in tags if str(t).strip()]
     try:
+        old_row = supabase.table("qa_items").select("tags").eq("id", item_id).single().execute().data
+        old_tags = set(old_row.get("tags") or []) if old_row else set()
+        new_tags_set = set(tags)
+        added   = new_tags_set - old_tags
+        removed = old_tags - new_tags_set
+
         supabase.table("qa_items").update({"tags": tags}).eq("id", item_id).execute()
+
+        if added:
+            existing = supabase.table("tag_groups").select("tag_name").in_("tag_name", list(added)).execute().data or []
+            existing_names = {r["tag_name"] for r in existing}
+            for t in added:
+                if t not in existing_names:
+                    supabase.table("tag_groups").upsert(
+                        {"tag_name": t, "group_name": "未分群"},
+                        on_conflict="tag_name"
+                    ).execute()
+
+        for t in removed:
+            still_used = supabase.table("qa_items").select("id").contains("tags", [t]).neq("id", item_id).limit(1).execute().data or []
+            if not still_used:
+                supabase.table("tag_groups").delete().eq("tag_name", t).execute()
+
         return jsonify({"ok": True, "tags": tags})
     except Exception as e:
         print("update_tags 失敗：", e, flush=True)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/qa/api/rename_tag", methods=["POST"])
+@require_qa
+def qa_rename_tag():
+    """全域改名：更新所有 qa_items.tags + tag_groups.tag_name"""
+    data = request.get_json()
+    old_name = (data.get("old_name") or "").strip()
+    new_name = (data.get("new_name") or "").strip()
+    if not old_name or not new_name:
+        return jsonify({"ok": False, "error": "名稱不可空白"}), 400
+    if old_name == new_name:
+        return jsonify({"ok": True, "updated": 0})
+    try:
+        updated = 0
+        offset = 0
+        while True:
+            rows = supabase.table("qa_items").select("id,tags").contains("tags", [old_name]).range(offset, offset + 199).execute().data or []
+            for row in rows:
+                new_tags = [new_name if t == old_name else t for t in (row["tags"] or [])]
+                supabase.table("qa_items").update({"tags": new_tags}).eq("id", row["id"]).execute()
+                updated += 1
+            if len(rows) < 200:
+                break
+            offset += 200
+        supabase.table("tag_groups").update({"tag_name": new_name}).eq("tag_name", old_name).execute()
+        return jsonify({"ok": True, "updated": updated})
+    except Exception as e:
+        print("rename_tag 失敗：", e, flush=True)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 # ──────────────────────────────────────────────
@@ -1217,7 +1331,7 @@ function renderDragBoard(){
       +'</div>';
     var zone='<div class="drag-zone" data-grp="'+escAttrG(grpName)+'" style="padding:8px;min-height:60px;max-height:400px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;">';
     tags.forEach(function(t){
-      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:none;">'+escHtmlG(t)+'</span>';
+      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 6px 3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:none;display:inline-flex;align-items:center;gap:2px;position:relative;">'+escHtmlG(t)+'<button class="adm-tag-ren" data-tag="'+escAttrG(t)+'" onclick="openAdminRenamePopup(this);event.stopPropagation()" title="改名" style="cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;border:none;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;color:#388e3c;flex-shrink:0;padding:0;">✏</button></span>';
     });
     zone+='</div>';
     col.innerHTML=hdr+zone;
@@ -1263,6 +1377,46 @@ function showDragLog(msg){
   el.style.display='';el.textContent=msg;
   setTimeout(function(){el.style.display='none';},2500);
 }
+var _admRenPopEl=null;
+function openAdminRenamePopup(btn){
+  if(_admRenPopEl){_admRenPopEl.remove();_admRenPopEl=null;}
+  var tag=btn.dataset.tag;
+  var pop=document.createElement('div');
+  pop.className='rename-popup';
+  pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:5px">全域改名（所有 QA 同步）</div>'
+    +'<input id="_admRenInp" data-old="'+escAttrG(tag)+'" value="'+escHtmlG(tag)+'" />'
+    +'<div class="rename-popup-row">'
+    +'<button class="ok" onclick="confirmAdminRename()">確認</button>'
+    +'<button onclick="closeAdminRenamePopup()">取消</button>'
+    +'</div>';
+  btn.closest('span').appendChild(pop);
+  _admRenPopEl=pop;
+  var inp=document.getElementById('_admRenInp');
+  if(inp){inp.focus();inp.select();}
+  pop.addEventListener('click',function(e){e.stopPropagation();});
+}
+function closeAdminRenamePopup(){
+  if(_admRenPopEl){_admRenPopEl.remove();_admRenPopEl=null;}
+}
+function confirmAdminRename(){
+  var inp=document.getElementById('_admRenInp');
+  if(!inp)return;
+  var oldName=inp.dataset.old||'';
+  var newName=inp.value.trim();
+  if(!newName){alert('新名稱不可空白');return;}
+  if(newName===oldName){closeAdminRenamePopup();return;}
+  fetch('/admin/api/tags/rename_global',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({old_name:oldName,new_name:newName})})
+  .then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      closeAdminRenamePopup();
+      showDragLog('「'+oldName+'」已改名為「'+newName+'」（共 '+d.updated+' 筆）');
+      loadGroups();
+    }else{alert('改名失敗：'+(d.error||'未知錯誤'));}
+  }).catch(function(){alert('網路錯誤');});
+}
+document.addEventListener('click',function(){closeAdminRenamePopup();});
+
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
   if(name===null)return;name=name.trim();
@@ -1811,6 +1965,34 @@ def admin_rename_tag(tag_id):
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route('/admin/api/tags/rename_global', methods=['POST'])
+@require_admin
+def admin_rename_tag_global():
+    """全域改名：更新所有 qa_items.tags + tag_groups.tag_name"""
+    d = request.get_json()
+    old_name = (d.get('old_name') or '').strip()
+    new_name = (d.get('new_name') or '').strip()
+    if not old_name or not new_name:
+        return jsonify({'ok': False, 'error': '名稱不可空白'}), 400
+    if old_name == new_name:
+        return jsonify({'ok': True, 'updated': 0})
+    try:
+        updated = 0
+        offset = 0
+        while True:
+            rows = supabase.table('qa_items').select('id,tags').contains('tags', [old_name]).range(offset, offset + 199).execute().data or []
+            for row in rows:
+                new_tags = [new_name if t == old_name else t for t in (row['tags'] or [])]
+                supabase.table('qa_items').update({'tags': new_tags}).eq('id', row['id']).execute()
+                updated += 1
+            if len(rows) < 200:
+                break
+            offset += 200
+        supabase.table('tag_groups').update({'tag_name': new_name}).eq('tag_name', old_name).execute()
+        return jsonify({'ok': True, 'updated': updated})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # ──────────────────────────────────────────────
 # 管理 API — 標籤定義
 # ──────────────────────────────────────────────
@@ -1934,11 +2116,11 @@ def get_all_group_tags():
         while True:
             rows = supabase.table('tag_groups').select('tag_name,group_name').range(offset, offset + batch - 1).execute().data or []
             for r in rows:
-                if r['tag_name'].startswith('__def__:'):
-                    continue
                 gn = r['group_name']
                 if gn not in result:
                     result[gn] = []
+                if r['tag_name'].startswith('__def__:'):
+                    continue
                 result[gn].append(r['tag_name'])
             if len(rows) < batch:
                 break
