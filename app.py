@@ -1158,8 +1158,7 @@ tr:hover td{background:#fafafa}
   <div class="card">
     <div class="card-title">🗂️ 群組管理</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-      <input id="newGroupName" placeholder="新群組名稱" style="flex:1;min-width:150px;" />
-      <button onclick="createGroup()">＋ 新增群組</button>
+      <button onclick="createGroup()" style="margin-left:auto;">＋ 新增群組</button>
     </div>
     <div id="groupList"></div>
   </div>
@@ -1211,13 +1210,14 @@ function renderGroups(){
   });
 }
 function createGroup(){
-  var name=document.getElementById('newGroupName').value.trim();
-  if(!name){alert('請輸入群組名稱');return;}
+  var name=prompt('請輸入新群組名稱：','');
+  if(name===null)return;
+  name=name.trim();
+  if(!name){alert('名稱不可空白');return;}
   fetch('/admin/api/groups',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name})})
   .then(r=>r.json()).then(function(d){
     if(d.error){alert('建立失敗：'+d.error);return;}
-    document.getElementById('newGroupName').value='';
     loadGroups();
   });
 }
