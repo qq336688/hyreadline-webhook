@@ -1836,10 +1836,13 @@ function submitEditUser(){
     is_active:document.getElementById('editIsActive').checked};
   if(pwd){if(pwd.length<6){document.getElementById('editModalMsg').textContent='密碼至少6個字元';return;}payload.password=pwd;}
   fetch('/admin/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-  .then(function(r){return r.json()}).then(function(d){
-    if(d.error){document.getElementById('editModalMsg').textContent=d.error;}
+  .then(function(r){
+    if(!r.ok){return r.text().then(function(t){throw new Error('HTTP '+r.status+': '+t.slice(0,200));});}
+    return r.json();
+  }).then(function(d){
+    if(d.error){document.getElementById('editModalMsg').textContent='儲存失敗：'+d.error;}
     else{closeEditModal();loadUsers();}
-  });
+  }).catch(function(e){document.getElementById('editModalMsg').textContent='連線錯誤：'+e.message;});
 }
 function delUser(id){
   if(!confirm('確定刪除此帳號？'))return;
@@ -2302,23 +2305,26 @@ def edit_user(user_id):
     data = request.get_json()
     update = {
         "display_name": (data.get("display_name") or "").strip(),
-        "can_query": data.get("can_query", True),
-        "can_admin": data.get("can_admin", False),
-        "perm_filter": data.get("perm_filter", True),
-        "perm_category": data.get("perm_category", True),
-        "perm_stats": data.get("perm_stats", True),
-        "perm_token": data.get("perm_token", True),
-        "perm_users": data.get("perm_users", True),
-        "perm_tags": data.get("perm_tags", True),
-        "perm_groups": data.get("perm_groups", True),
-        "is_active": data.get("is_active", True)
+        "can_query": bool(data.get("can_query", True)),
+        "can_admin": bool(data.get("can_admin", False)),
+        "perm_filter": bool(data.get("perm_filter", True)),
+        "perm_category": bool(data.get("perm_category", True)),
+        "perm_stats": bool(data.get("perm_stats", True)),
+        "perm_token": bool(data.get("perm_token", True)),
+        "perm_users": bool(data.get("perm_users", True)),
+        "perm_tags": bool(data.get("perm_tags", True)),
+        "perm_groups": bool(data.get("perm_groups", True)),
+        "is_active": bool(data.get("is_active", True))
     }
     if data.get("password"):
         if len(data["password"]) < 6:
             return jsonify({"error": "密碼至少6個字元"}), 400
         update["password_hash"] = generate_password_hash(data["password"])
-    supabase.table("admin_users").update(update).eq("id", user_id).execute()
-    return jsonify({"success": True})
+    try:
+        result = supabase.table("admin_users").update(update).eq("id", user_id).execute()
+        return jsonify({"success": True, "updated": update})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/admin/api/users/<int:user_id>", methods=["PATCH"])
 @require_admin
