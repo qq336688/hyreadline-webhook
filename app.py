@@ -1164,7 +1164,6 @@ tr:hover td{background:#fafafa}
   <div class="tab" data-tab="stats" onclick="showTab(this,'stats')">📊 分析總覽</div>
   <div class="tab" data-tab="token" onclick="showTab(this,'token')">⚡ Token 用量</div>
   <div class="tab" data-tab="users" onclick="showTab(this,'users')">👤 帳號管理</div>
-  <div class="tab" data-tab="tagmgr" onclick="showTab(this,'tagmgr')">🏷️ 標籤管理</div>
   <div class="tab" data-tab="groupmgr" onclick="showTab(this,'groupmgr')">🗂️ 群組管理</div>
 </div>
 
@@ -1506,24 +1505,6 @@ function deleteGroup(name){
 </script>
 
 <!-- 標籤管理 -->
-<div class="panel" id="tab-tagmgr">
-  <div class="card">
-    <div class="card-title">&#128260; 從 Q&amp;A 資料同步標籤</div>
-    <div style="font-size:12px;color:#888;margin-bottom:10px">將 Q&amp;A 資料中所有標籤匯入管理清單，已存在的不重複新增。</div>
-    <button class="btn-green" onclick="syncTagNames()" id="syncTagBtn">立即同步</button>
-    <span id="syncTagMsg" class="msg" style="margin-left:10px"></span>
-  </div>
-  <div class="card">
-    <div class="card-title">&#127991;&#65039; 標籤清單
-      <span style="font-size:11px;color:#aaa;font-weight:400;margin-left:8px" id="tagNameCount"></span>
-    </div>
-    <table>
-      <thead><tr><th>標籤名稱</th><th style="width:60px;text-align:center">筆數</th><th style="width:120px">操作</th></tr></thead>
-      <tbody id="tagNamesTable"><tr><td colspan="3" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
 <!-- Token 用量 -->
 <div class="panel" id="tab-token">
   <div id="tokenWarn"></div>
@@ -1549,7 +1530,6 @@ function showTab(el,name){
   if(name==='stats')loadStats();
   if(name==='token')loadTokens();
   if(name==='users')loadUsers();
-  if(name==='tagmgr')loadTagDefs();
   if(name==='groupmgr')loadGroups();
 }
 
@@ -1863,74 +1843,12 @@ function escQ(t){return(t||'').replace(/\'/g,'\\\'').replace(/"/g,'&quot;')}
 function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
 function showMsg(id,msg,isErr){var el=document.getElementById(id);el.className='msg'+(isErr?' err':'');el.textContent=msg;setTimeout(function(){el.textContent=''},3000)}
 
-/* ── 標籤名稱管理 ── */
-function loadTagDefs(){
-  fetch('/admin/api/tag_names').then(function(r){return r.json()}).then(function(rows){
-    var countEl=document.getElementById('tagNameCount');
-    if(countEl)countEl.textContent='共 '+rows.length+' 個標籤';
-    var html='';
-    rows.forEach(function(r){
-      html+='<tr id="tagrow-'+r.id+'">'
-        +'<td><span id="tagname-'+r.id+'" style="font-weight:500">'+esc(r.name)+'</span>'
-        +'<input id="taginput-'+r.id+'" type="text" value="'+esc(r.name)+'" style="display:none;padding:4px 8px;border:.5px solid #ddd;border-radius:4px;font-size:12px;width:160px"></td>'
-        +'<td style="text-align:center;color:#aaa;font-size:12px">'+r.cnt+'</td>'
-        +'<td>'
-        +'<button class="btn-outline" id="editbtn-'+r.id+'" onclick="startEditTag('+r.id+')" style="margin-right:4px">改名</button>'
-        +'<button class="btn-green" id="savebtn-'+r.id+'" onclick="saveTagName('+r.id+')" style="display:none;margin-right:4px">儲存</button>'
-        +'<button class="btn-outline" id="cancelbtn-'+r.id+'" onclick="cancelEditTag('+r.id+')" style="display:none">取消</button>'
-        +'</td></tr>';
-    });
-    document.getElementById('tagNamesTable').innerHTML=html||'<tr><td colspan="3" style="color:#aaa;text-align:center;padding:20px">尚無標籤，請先點「立即同步」</td></tr>';
-  });
-}
-function startEditTag(id){
-  document.getElementById('tagname-'+id).style.display='none';
-  document.getElementById('taginput-'+id).style.display='';
-  document.getElementById('editbtn-'+id).style.display='none';
-  document.getElementById('savebtn-'+id).style.display='';
-  document.getElementById('cancelbtn-'+id).style.display='';
-  document.getElementById('taginput-'+id).focus();
-}
-function cancelEditTag(id){
-  var orig=document.getElementById('tagname-'+id).textContent;
-  document.getElementById('taginput-'+id).value=orig;
-  document.getElementById('tagname-'+id).style.display='';
-  document.getElementById('taginput-'+id).style.display='none';
-  document.getElementById('editbtn-'+id).style.display='';
-  document.getElementById('savebtn-'+id).style.display='none';
-  document.getElementById('cancelbtn-'+id).style.display='none';
-}
-function saveTagName(id){
-  var newName=document.getElementById('taginput-'+id).value.trim();
-  var oldName=document.getElementById('tagname-'+id).textContent;
-  if(!newName){alert('標籤名稱不可為空');return;}
-  if(newName===oldName){cancelEditTag(id);return;}
-  document.getElementById('savebtn-'+id).textContent='更新中...';
-  fetch('/admin/api/tag_names/'+id+'/rename',{method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({new_name:newName})})
-  .then(function(r){return r.json()}).then(function(d){
-    if(d.ok){showMsg('syncTagMsg','「'+oldName+'」已更新為「'+newName+'」（'+d.updated_items+' 筆 Q&A 同步）',false);loadTagDefs();}
-    else{alert('失敗：'+d.error);document.getElementById('savebtn-'+id).textContent='儲存';}
-  });
-}
-function syncTagNames(){
-  var btn=document.getElementById('syncTagBtn');
-  btn.textContent='同步中...';btn.disabled=true;
-  fetch('/admin/api/tag_names/sync',{method:'POST'})
-  .then(function(r){return r.json()}).then(function(d){
-    btn.textContent='立即同步';btn.disabled=false;
-    showMsg('syncTagMsg','同步完成，新增 '+d.added+' 個標籤',false);
-    loadTagDefs();
-  }).catch(function(){btn.textContent='立即同步';btn.disabled=false;});
-}
-
 /* 預設載入 */
 loadWords();
 /* 依目前登入者的後台權限隱藏無存取權的分頁 */
 (function(){
   fetch('/admin/api/me').then(function(r){return r.json();}).then(function(p){
-    var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',tagmgr:'tags',groupmgr:'groups'};
+    var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',groupmgr:'groups'};
     Object.keys(map).forEach(function(tabName){
       var permKey='perm_'+map[tabName];
       if(p[permKey]===false){
@@ -1943,73 +1861,6 @@ loadWords();
   }).catch(function(){});
 })();
 </script></body></html>'''
-
-# ──────────────────────────────────────────────
-# 管理 API — 標籤名稱管理
-# ──────────────────────────────────────────────
-@app.route("/admin/api/tag_names")
-@require_admin
-def admin_get_tag_names():
-    try:
-        from collections import Counter
-        names = supabase.table("tag_names").select("id,name,created_at").order("name").execute().data or []
-        rows  = supabase.table("qa_items").select("tags").execute().data or []
-        counter = Counter()
-        for r in rows:
-            for t in (r.get("tags") or []):
-                t = t.strip()
-                if t: counter[t] += 1
-        for n in names:
-            n["cnt"] = counter.get(n["name"], 0)
-        return jsonify(names)
-    except Exception as e:
-        return jsonify([])
-
-@app.route("/admin/api/tag_names/sync", methods=["POST"])
-@require_admin
-def admin_sync_tag_names():
-    try:
-        from collections import Counter
-        rows = supabase.table("qa_items").select("tags").execute().data or []
-        counter = Counter()
-        for r in rows:
-            for t in (r.get("tags") or []):
-                t = t.strip()
-                if t: counter[t] += 1
-        existing = {n["name"] for n in (supabase.table("tag_names").select("name").execute().data or [])}
-        added = 0
-        for tag in counter.keys():
-            if tag not in existing:
-                supabase.table("tag_names").insert({"name": tag}).execute()
-                added += 1
-        return jsonify({"ok": True, "added": added})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-@app.route("/admin/api/tag_names/<int:tag_id>/rename", methods=["POST"])
-@require_admin
-def admin_rename_tag(tag_id):
-    try:
-        data = request.get_json()
-        new_name = (data.get("new_name") or "").strip()
-        if not new_name:
-            return jsonify({"ok": False, "error": "新名稱不可為空"}), 400
-        row = supabase.table("tag_names").select("name").eq("id", tag_id).execute().data
-        if not row:
-            return jsonify({"ok": False, "error": "找不到此標籤"}), 404
-        old_name = row[0]["name"]
-        if old_name == new_name:
-            return jsonify({"ok": True, "updated_items": 0})
-        supabase.table("tag_names").update({"name": new_name}).eq("id", tag_id).execute()
-        items = supabase.table("qa_items").select("id,tags").contains("tags", [old_name]).execute().data or []
-        updated = 0
-        for item in items:
-            new_tags = [new_name if t == old_name else t for t in (item.get("tags") or [])]
-            supabase.table("qa_items").update({"tags": new_tags}).eq("id", item["id"]).execute()
-            updated += 1
-        return jsonify({"ok": True, "updated_items": updated})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route('/admin/api/tags/rename_global', methods=['POST'])
 @require_admin
