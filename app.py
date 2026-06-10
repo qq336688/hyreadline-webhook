@@ -220,7 +220,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-seri
 .topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;flex-shrink:0}
 .topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
 .wrap{display:flex;flex:1;overflow:hidden}
-aside{width:240px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
+aside{width:260px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
 .yearbar{background:#1a8c2e;padding:7px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0}
 .yr-bar-btn{padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:.5px solid rgba(255,255,255,.35);color:rgba(255,255,255,.9);background:rgba(255,255,255,.12)}
 .yr-bar-btn:hover{background:rgba(255,255,255,.25)}
@@ -240,6 +240,16 @@ aside{width:240px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8
 .tag-filter-chip:hover{border-color:#00b900;color:#1b5e20}
 .tag-filter-chip.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
 .tag-clear-btn{font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;margin-top:4px;display:none;width:100%}
+.side-tab-bar{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:8px;padding-bottom:6px;border-bottom:.5px solid #eee}
+.side-tab-btn{padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;border:.5px solid transparent;color:#888;background:transparent;white-space:nowrap;font-family:inherit}
+.side-tab-btn:hover{background:#f0f0f0;color:#333}
+.side-tab-btn.active{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;font-weight:500}
+.home-tab-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.home-tab-btn{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:.5px solid #ddd;color:#666;background:#fff;white-space:nowrap;font-family:inherit}
+.home-tab-btn:hover{border-color:#00b900;color:#1b5e20}
+.home-tab-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
+.home-tab-cnt{font-size:10px;padding:1px 5px;border-radius:8px;background:rgba(0,0,0,.06);margin-left:3px}
+.home-tab-btn.active .home-tab-cnt{background:rgba(27,94,32,.15);color:#1b5e20}
 .tag-clear-btn.visible{display:block}
 main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .search-bar{padding:12px 16px;border-bottom:.5px solid #e0e0e0;background:#fff}
@@ -333,12 +343,9 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 <div class="wrap">
   <aside>
     <div class="sb-lbl">標籤篩選</div>
-    <input id="tagSearch" type="text" placeholder="搜尋標籤..."
-      style="width:100%;padding:5px 8px;border:.5px solid #ddd;border-radius:6px;font-size:11px;margin-bottom:6px;font-family:inherit;outline:none"
-      oninput="filterTagChips(this.value)">
+    <div id="sideTabBar" class="side-tab-bar"></div>
     <div id="tagFilterList" style="line-height:1.9"></div>
-    <button id="tagShowMore" onclick="showAllTags()" style="font-size:10px;color:#00b900;padding:2px 0;border:none;background:transparent;cursor:pointer;width:100%;margin-top:2px;display:none">＋ 顯示全部標籤</button>
-    <button id="tagClearBtn" class="tag-clear-btn" onclick="clearTagFilter()">清除篩選</button>
+    <button id="tagClearBtn" class="tag-clear-btn" onclick="clearTagFilter()">✕ 清除篩選</button>
   </aside>
   <main>
     <div class="search-bar">
@@ -373,10 +380,14 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     </div>
     <div class="results" id="results">
       <div class="empty" id="homeState">
-        <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
+        <div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
         <div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div>
         <div style="width:100%;max-width:700px;margin-bottom:14px">
-          <div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:10px">點選標籤篩選</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div>
+            <button id="homeClearBtn" class="tag-clear-btn" onclick="clearTagFilter()" style="width:auto;margin-top:0;display:none">✕ 清除篩選</button>
+          </div>
+          <div id="homeTabBar" class="home-tab-bar"></div>
           <div id="homeTagChips" class="chips" style="justify-content:flex-start"></div>
         </div>
       </div>
@@ -384,7 +395,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false;
+var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false,sidebarActiveGroup=null,homeActiveGroup=null;
 /* Popover 用的預設標籤 */
 var PRESET_TAGS=['維修','保固','召回','APP','帳號','物流','閱讀器','書櫃','破屏','線條','出線','忘記密碼','開放式','封閉式'];
 /* 各卡片目前的 tags 暫存 {id: [tags]} */
@@ -415,55 +426,62 @@ var GRP_COLORS={'裝置型號':'#1D9E75','問題類型':'#378ADD','配件':'#BA7
 function grpColor(g){return GRP_COLORS[g]||'#888780';}
 
 function renderGroupedTagChips(tags){
-  var kw=document.getElementById('tagSearch')?document.getElementById('tagSearch').value.trim():'';
-  var filtered=kw?tags.filter(function(t){return t.tag.indexOf(kw)>=0;}):tags;
-  var groups={};
-  filtered.forEach(function(t){
-    var g=t.group||'未分群';
-    if(!groups[g])groups[g]=[];
-    groups[g].push(t);
-  });
-  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
-  var html='';
-  order.forEach(function(g){
-    if(!groups[g]||!groups[g].length)return;
-    var col=grpColor(g);
-    html+='<div class="tag-group-hdr"><span class="grp-dot" style="background:'+col+'"></span>'+g+'<span class="grp-count">'+groups[g].length+'</span></div>';
-    groups[g].forEach(function(t){
-      var active=selectedTags.indexOf(t.tag)>=0?' active':'';
-      html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
-    });
-  });
-  Object.keys(groups).forEach(function(g){
-    if(order.indexOf(g)>=0)return;
-    var col=grpColor(g);
-    html+='<div class="tag-group-hdr"><span class="grp-dot" style="background:'+col+'"></span>'+g+'<span class="grp-count">'+groups[g].length+'</span></div>';
-    groups[g].forEach(function(t){
-      var active=selectedTags.indexOf(t.tag)>=0?' active':'';
-      html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
-    });
-  });
-  document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
-  var showMore=document.getElementById('tagShowMore');
-  if(showMore)showMore.style.display='none';
-}
-
-function renderHomeTagChips(tags,el){
-  var html='';
-  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
   var groups={};
   tags.forEach(function(t){var g=t.group||'未分群';if(!groups[g])groups[g]=[];groups[g].push(t);});
-  order.forEach(function(g){
-    if(!groups[g])return;
-    var col=grpColor(g);
-    html+='<div style="margin:6px 0 3px;font-size:10px;color:'+col+';font-weight:600;letter-spacing:.3px;">'+g+'</div>';
-    groups[g].forEach(function(t){
-      var active=selectedTags.indexOf(t.tag)>=0?' active':'';
-      html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'+esc(t.tag)+'</span>';
-    });
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var allGrps=[];
+  order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
+  Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
+  if(!allGrps.length){document.getElementById('tagFilterList').innerHTML='<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';return;}
+  if(!sidebarActiveGroup||allGrps.indexOf(sidebarActiveGroup)<0)sidebarActiveGroup=allGrps[0];
+  var tabHtml='';
+  allGrps.forEach(function(g){
+    var act=g===sidebarActiveGroup?' active':'';
+    tabHtml+='<button class="side-tab-btn'+act+'" data-grp="'+esc(g)+'">'+esc(g)+'</button>';
   });
-  el.innerHTML=html;
+  var sideTabBar=document.getElementById('sideTabBar');
+  if(sideTabBar){sideTabBar.innerHTML=tabHtml;
+    document.querySelectorAll('.side-tab-btn').forEach(function(el){
+      el.addEventListener('click',function(){switchSideTab(this.dataset.grp);});
+    });
+  }
+  var chipsHtml='';
+  (groups[sidebarActiveGroup]||[]).forEach(function(t){
+    var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+    chipsHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+  });
+  document.getElementById('tagFilterList').innerHTML=chipsHtml||'<div style="font-size:11px;color:#ccc;padding:4px">（無標籤）</div>';
 }
+function switchSideTab(group){sidebarActiveGroup=group;renderGroupedTagChips(allTagsData);}
+
+function renderHomeTagChips(tags,el){
+  var groups={};
+  tags.forEach(function(t){var g=t.group||'未分群';if(!groups[g])groups[g]=[];groups[g].push(t);});
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var allGrps=[];
+  order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
+  Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
+  if(!allGrps.length)return;
+  if(!homeActiveGroup||allGrps.indexOf(homeActiveGroup)<0)homeActiveGroup=allGrps[0];
+  var tabHtml='';
+  allGrps.forEach(function(g){
+    var act=g===homeActiveGroup?' active':'';
+    tabHtml+='<button class="home-tab-btn'+act+'" data-grp="'+esc(g)+'">'+esc(g)+'<span class="home-tab-cnt">'+(groups[g].length)+'</span></button>';
+  });
+  var homeTabBar=document.getElementById('homeTabBar');
+  if(homeTabBar){homeTabBar.innerHTML=tabHtml;
+    document.querySelectorAll('.home-tab-btn').forEach(function(b){
+      b.addEventListener('click',function(){switchHomeTab(this.dataset.grp);});
+    });
+  }
+  var chipsHtml='';
+  (groups[homeActiveGroup]||[]).forEach(function(t){
+    var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+    chipsHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'+esc(t.tag)+'</span>';
+  });
+  el.innerHTML=chipsHtml;
+}
+function switchHomeTab(group){homeActiveGroup=group;var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
 
 function browseYearBar(el,yr){
   document.querySelectorAll('.yr-bar-btn').forEach(function(b){b.classList.remove('active');});
@@ -481,15 +499,6 @@ function renderTagChips(tags,limit){
   });
   document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
   if(showMore){showMore.style.display=(!tagsExpanded&&tags.length>TAGS_DEFAULT_SHOW)?'block':'none';}
-}
-
-function filterTagChips(kw){
-  renderGroupedTagChips(allTagsData);
-}
-
-function showAllTags(){
-  tagsExpanded=true;
-  renderTagChips(allTagsData,null);
 }
 
 function renderSelTagBar(){
@@ -521,7 +530,8 @@ function pickHomeTag(tag){
     selectedTags.push(tag);
     var chip=document.querySelector('.tag-filter-chip[data-tag="'+tag+'"]');
     if(chip)chip.classList.add('active');
-    document.getElementById('tagClearBtn').classList.add('visible');
+    var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.add('visible');
+    var hcb=document.getElementById('homeClearBtn');if(hcb)hcb.style.display='';
   }
   renderSelTagBar();
   _doSearch();
@@ -535,8 +545,8 @@ function toggleTagFilter(el){
   if(idx>=0){selectedTags.splice(idx,1);el.classList.remove('active');}
   else{selectedTags.push(tag);el.classList.add('active');}
   var clearBtn=document.getElementById('tagClearBtn');
-  if(selectedTags.length>0)clearBtn.classList.add('visible');
-  else clearBtn.classList.remove('visible');
+  if(selectedTags.length>0)clearBtn.classList.add('visible');else clearBtn.classList.remove('visible');
+  var hcb=document.getElementById('homeClearBtn');if(hcb)hcb.style.display=selectedTags.length?'':'none';
   renderSelTagBar();
   exitBrowse();
   _doSearch();
@@ -545,9 +555,11 @@ function toggleTagFilter(el){
 function clearTagFilter(){
   selectedTags=[];
   document.querySelectorAll('.tag-filter-chip.active').forEach(function(e){e.classList.remove('active')});
-  document.getElementById('tagClearBtn').classList.remove('visible');
+  var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.remove('visible');
+  var hcb=document.getElementById('homeClearBtn');if(hcb)hcb.style.display='none';
   renderSelTagBar();
-  _doSearch();
+  var kw=document.getElementById('kw').value.trim();
+  if(!kw&&!browseMode)clearSearch();else _doSearch();
 }
 
 function toggleEditMode(){
@@ -646,8 +658,8 @@ function clearSearch(){
   document.getElementById('kw').focus();
   exitBrowse();
   document.getElementById('cntBadge').style.display='none';
-  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px;margin-bottom:10px">點選標籤篩選</div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
-  if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl){var hHtml='';renderHomeTagChips(allTagsData,hEl);}}
+  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;max-width:700px;margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div><button id="homeClearBtn" class="tag-clear-btn" onclick="clearTagFilter()" style="width:auto;margin-top:0;display:none">✕ 清除篩選</button></div><div id="homeTabBar" class="home-tab-bar"></div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
+  if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function hilite(text,kw){
