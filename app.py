@@ -1407,7 +1407,7 @@ function openAdminRenamePopup(btn){
   var pop=document.createElement('div');
   pop.style.cssText='position:fixed;background:#fff;border:1px solid #ddd;border-radius:8px;padding:10px 12px;z-index:9999;min-width:210px;box-shadow:0 2px 12px rgba(0,0,0,.15);';
   pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:6px">全域改名（所有 QA 同步）</div>'
-    +'<input id="_admRenInp" data-old="'+escAttrG(tag)+'" value="'+escHtmlG(tag)+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:8px;" />'
+    +'<input id="_admRenInp" draggable="false" data-old="'+escAttrG(tag)+'" value="'+escHtmlG(tag)+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:8px;user-select:text;cursor:text;" />'
     +'<div style="display:flex;gap:5px;">'
     +'<button onclick="confirmAdminRename()" style="font-size:11px;padding:4px 10px;border-radius:6px;background:#00b900;border:none;color:#fff;cursor:pointer;">確認</button>'
     +'<button onclick="closeAdminRenamePopup()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer;">取消</button>'
@@ -1423,6 +1423,8 @@ function openAdminRenamePopup(btn){
   var inp=document.getElementById('_admRenInp');
   if(inp){inp.focus();inp.select();}
   pop.addEventListener('click',function(e){e.stopPropagation();});
+  pop.addEventListener('mousedown',function(e){e.stopPropagation();});
+  pop.addEventListener('dragstart',function(e){e.stopPropagation();e.preventDefault();});
 }
 function closeAdminRenamePopup(){
   if(_admRenPopEl){_admRenPopEl.remove();_admRenPopEl=null;}
@@ -1460,7 +1462,7 @@ function confirmAdminRename(forceMerge){
     }else{alert('改名失敗：'+(d.error||'未知錯誤'));}
   }).catch(function(){alert('網路錯誤');});
 }
-document.addEventListener('click',function(){closeAdminRenamePopup();});
+document.addEventListener('click',function(e){if(_admRenPopEl&&!_admRenPopEl.contains(e.target))closeAdminRenamePopup();});
 
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
