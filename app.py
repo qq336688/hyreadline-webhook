@@ -1153,8 +1153,8 @@ tr:hover td{background:#fafafa}
 <div id="userBatchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:28px 32px;width:540px;max-width:95vw">
     <div style="font-size:15px;font-weight:500;margin-bottom:8px">📋 批次新增帳號</div>
-    <div style="font-size:12px;color:#777;margin-bottom:14px">每行一個帳號，格式：帳號,密碼,顯示名稱,角色（後兩欄選填）<br>查詢模組預設開啟，後台模組預設關閉。</div>
-    <textarea id="batchCsv" rows="8" placeholder="stacy,pass123,陳玲儒,客服員&#10;john,pass456,王大明,維修技術員" style="width:100%;padding:10px;border:.5px solid #ddd;border-radius:6px;font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+    <div style="font-size:12px;color:#777;margin-bottom:14px">每行一個帳號，格式：帳號,密碼,顯示名稱（第三欄選填）<br>查詢模組預設開啟，後台模組預設關閉。</div>
+    <textarea id="batchCsv" rows="8" placeholder="stacy,pass123,陳玲儒&#10;john,pass456,王大明" style="width:100%;padding:10px;border:.5px solid #ddd;border-radius:6px;font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
     <div id="batchMsg" style="font-size:12px;margin-top:10px;min-height:18px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
       <button class="btn-outline" onclick="closeBatchModal()">取消</button>
@@ -1167,62 +1167,102 @@ tr:hover td{background:#fafafa}
 <div class="panel" id="tab-groupmgr">
   <div class="card">
     <div class="card-title">🗂️ 群組管理</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
       <button onclick="createGroup()" style="margin-left:auto;">＋ 新增群組</button>
     </div>
-    <div id="groupList"></div>
-  </div>
-  <div class="card" id="groupTagCard" style="display:none">
-    <div class="card-title" id="groupTagTitle">標籤列表</div>
-    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
-      <input id="tagSearchInGroup" placeholder="搜尋標籤..." oninput="filterGroupTags()" style="flex:1;" />
-    </div>
-    <div id="groupTagList" style="max-height:400px;overflow-y:auto;"></div>
+    <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
+    <div id="dragBoard" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
   </div>
 </div>
 <script>
-var currentGroup='';
-var allGroupTags=[];
 var allGroups=[];
+var allGroupsData={};
+var dragState={};
 
 function loadGroups(){
-  fetch('/admin/api/groups').then(r=>r.json()).then(d=>{
-    allGroups=d.groups||[];
-    renderGroups();
+  fetch('/admin/api/groups/all_tags').then(r=>r.json()).then(d=>{
+    allGroupsData=d.groups||{};
+    allGroups=Object.keys(allGroupsData).map(function(name){
+      return {name:name,count:allGroupsData[name].length};
+    });
+    renderDragBoard();
   });
 }
 
-function renderGroups(){
-  var html='<table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr style="background:#f5f5f5;"><th style="padding:8px 12px;text-align:left;">群組名稱</th><th style="padding:8px 12px;text-align:right;">標籤數</th><th style="padding:8px 12px;text-align:center;">操作</th></tr></thead><tbody>';
-  allGroups.forEach(function(g){
-    var attr=g.name.replace(/"/g,'&quot;');
-    html+='<tr style="border-bottom:1px solid #eee;">'
-      +'<td style="padding:8px 12px;"><span class="grp-view" data-n="'+attr+'" style="cursor:pointer;color:#1a73e8;">'+g.name+'</span></td>'
-      +'<td style="padding:8px 12px;text-align:right;">'+g.count+'</td>'
-      +'<td style="padding:8px 12px;text-align:center;">'
-      +'<button class="grp-act" data-act="rename" data-n="'+attr+'" style="margin-right:4px;font-size:12px;">改名</button>'
-      +(g.name!=='未分群'?'<button class="grp-act" data-act="merge" data-n="'+attr+'" style="margin-right:4px;font-size:12px;">合併至</button>':'')
-      +(g.name!=='未分群'?'<button class="grp-act" data-act="delete" data-n="'+attr+'" style="font-size:12px;color:#c62828;">刪除</button>':'')
-      +'</td></tr>';
-  });
-  html+='</tbody></table>';
-  document.getElementById('groupList').innerHTML=html;
-  document.querySelectorAll('.grp-view').forEach(function(el){
-    el.addEventListener('click',function(){viewGroupTags(this.dataset.n);});
-  });
-  document.querySelectorAll('.grp-act').forEach(function(el){
-    el.addEventListener('click',function(){
-      var n=this.dataset.n,act=this.dataset.act;
-      if(act==='rename')renameGroup(n);
-      else if(act==='merge')mergeGroup(n);
-      else if(act==='delete')deleteGroup(n);
+function escAttrG(s){return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+function escHtmlG(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function renderDragBoard(){
+  var board=document.getElementById('dragBoard');
+  if(!board)return;
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var orderedGrps=[];
+  order.forEach(function(g){if(allGroupsData[g]!==undefined)orderedGrps.push(g);});
+  Object.keys(allGroupsData).forEach(function(g){if(order.indexOf(g)<0)orderedGrps.push(g);});
+  board.innerHTML='';
+  orderedGrps.forEach(function(grpName){
+    var tags=(allGroupsData[grpName]||[]).slice().sort();
+    var col=document.createElement('div');
+    col.style.cssText='min-width:160px;max-width:220px;flex:1;border-radius:8px;border:0.5px solid #e0e0e0;overflow:hidden;background:#fafafa;';
+    var hdr='<div style="padding:7px 10px;background:#f0f0f0;border-bottom:0.5px solid #e0e0e0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">'
+      +'<span style="font-size:13px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtmlG(grpName)+'</span>'
+      +'<span style="font-size:10px;background:#e8f5e9;color:#1b5e20;padding:1px 6px;border-radius:9px;">'+tags.length+'</span>'
+      +'<button class="col-act" data-act="rename" data-n="'+escAttrG(grpName)+'" style="font-size:10px;padding:1px 5px;cursor:pointer;">改名</button>'
+      +(grpName!=='未分群'?'<button class="col-act" data-act="merge" data-n="'+escAttrG(grpName)+'" style="font-size:10px;padding:1px 5px;cursor:pointer;">合併</button>':'')
+      +(grpName!=='未分群'?'<button class="col-act" data-act="delete" data-n="'+escAttrG(grpName)+'" style="font-size:10px;padding:1px 5px;cursor:pointer;color:#c62828;">刪除</button>':'')
+      +'</div>';
+    var zone='<div class="drag-zone" data-grp="'+escAttrG(grpName)+'" style="padding:8px;min-height:60px;max-height:400px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;">';
+    tags.forEach(function(t){
+      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:none;">'+escHtmlG(t)+'</span>';
+    });
+    zone+='</div>';
+    col.innerHTML=hdr+zone;
+    board.appendChild(col);
+    col.querySelectorAll('.col-act').forEach(function(el){
+      el.addEventListener('click',function(){
+        var n=this.dataset.n,act=this.dataset.act;
+        if(act==='rename')renameGroup(n);
+        else if(act==='merge')mergeGroup(n);
+        else if(act==='delete')deleteGroup(n);
+      });
+    });
+    var zoneEl=col.querySelector('.drag-zone');
+    zoneEl.addEventListener('dragover',function(e){e.preventDefault();this.style.background='#e8f5e9';});
+    zoneEl.addEventListener('dragleave',function(){this.style.background='';});
+    zoneEl.addEventListener('drop',function(e){
+      e.preventDefault();this.style.background='';
+      var toGrp=this.dataset.grp;
+      if(!dragState.tag||dragState.fromGroup===toGrp)return;
+      moveTagDrag(dragState.tag,dragState.fromGroup,toGrp);
+    });
+    col.querySelectorAll('.drag-chip').forEach(function(chip){
+      chip.addEventListener('dragstart',function(e){
+        dragState={tag:this.dataset.tag,fromGroup:this.dataset.grp};
+        e.dataTransfer.effectAllowed='move';
+        setTimeout(function(){chip.style.opacity='0.35';},0);
+      });
+      chip.addEventListener('dragend',function(){this.style.opacity='';});
     });
   });
 }
+
+function moveTagDrag(tagName,fromGroup,toGroup){
+  fetch('/admin/api/groups/tag',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tag_name:tagName,group_name:toGroup})})
+  .then(r=>r.json()).then(function(d){
+    if(d.ok){showDragLog('「'+tagName+'」已移至「'+toGroup+'」');loadGroups();}
+    else alert('移動失敗：'+(d.error||''));
+  });
+}
+function showDragLog(msg){
+  var el=document.getElementById('dragLog');if(!el)return;
+  el.style.display='';el.textContent=msg;
+  setTimeout(function(){el.style.display='none';},2500);
+}
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
-  if(name===null)return;
-  name=name.trim();
+  if(name===null)return;name=name.trim();
   if(!name){alert('名稱不可空白');return;}
   fetch('/admin/api/groups',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name})})
@@ -1231,84 +1271,33 @@ function createGroup(){
     loadGroups();
   });
 }
-
 function renameGroup(name){
   var newName=prompt('將「'+name+'」改名為：',name);
   if(!newName||newName===name)return;
   fetch('/admin/api/groups/rename',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({old_name:name,new_name:newName.trim()})})
   .then(r=>r.json()).then(function(d){
-    if(d.ok){loadGroups();if(currentGroup===name){currentGroup=newName.trim();viewGroupTags(currentGroup);}}
-    else alert('失敗：'+d.error);
+    if(d.ok)loadGroups();else alert('失敗：'+d.error);
   });
 }
-
 function mergeGroup(source){
   var targets=allGroups.filter(function(g){return g.name!==source;}).map(function(g){return g.name;});
-  var target=prompt('將「'+source+'」合併至哪個群組？\\n選項：'+targets.join('、'));
+  var target=prompt('將「'+source+'」合併至哪個群組？\n選項：'+targets.join('、'));
   if(!target)return;
-  if(!targets.includes(target)){alert('找不到群組「'+target+'」');return;}
+  if(!allGroupsData[target]){alert('找不到群組「'+target+'」');return;}
   if(!confirm('確定將「'+source+'」所有標籤移至「'+target+'」？'))return;
   fetch('/admin/api/groups/merge',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({source:source,target:target})})
   .then(r=>r.json()).then(function(d){
-    if(d.ok){loadGroups();}
-    else alert('失敗：'+d.error);
+    if(d.ok)loadGroups();else alert('失敗：'+d.error);
   });
 }
-
 function deleteGroup(name){
-  if(!confirm('刪除群組「'+name+'」？\\n其下所有標籤將移至「未分群」'))return;
+  if(!confirm('刪除群組「'+name+'」？\n其下所有標籤將移至「未分群」'))return;
   fetch('/admin/api/groups/delete',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name})})
   .then(r=>r.json()).then(function(d){
-    if(d.ok){loadGroups();}
-    else alert('失敗：'+d.error);
-  });
-}
-
-function viewGroupTags(group){
-  currentGroup=group;
-  document.getElementById('groupTagCard').style.display='';
-  document.getElementById('groupTagTitle').textContent='「'+group+'」的標籤';
-  fetch('/admin/api/groups/tags?group='+encodeURIComponent(group))
-  .then(r=>r.json()).then(function(d){
-    allGroupTags=d.tags||[];
-    filterGroupTags();
-  });
-}
-
-function filterGroupTags(){
-  var kw=document.getElementById('tagSearchInGroup').value.trim().toLowerCase();
-  var filtered=kw?allGroupTags.filter(function(t){return t.tag_name.toLowerCase().includes(kw);}):allGroupTags;
-  renderGroupTags(filtered);
-}
-
-function renderGroupTags(tags){
-  var otherGroups=allGroups.filter(function(g){return g.name!==currentGroup;}).map(function(g){return g.name;});
-  var html='';
-  tags.forEach(function(t){
-    var attr=t.tag_name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-    var opts=otherGroups.map(function(g){return '<option value="'+g.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+g+'</option>';}).join('');
-    html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;">'
-      +'<span style="flex:1;font-size:13px;">'+t.tag_name+'</span>'
-      +'<select class="mv-tag-sel" data-tag="'+attr+'" style="font-size:12px;">'
-      +'<option value="">移至...</option>'+opts+'</select>'
-      +'</div>';
-  });
-  document.getElementById('groupTagList').innerHTML=html||'<p style="color:#999;font-size:13px;">（無標籤）</p>';
-  document.querySelectorAll('.mv-tag-sel').forEach(function(sel){
-    sel.addEventListener('change',function(){moveTag(this.dataset.tag,this.value);});
-  });
-}
-
-function moveTag(tagName,newGroup){
-  if(!newGroup)return;
-  fetch('/admin/api/groups/tag',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({tag_name:tagName,group_name:newGroup})})
-  .then(r=>r.json()).then(function(d){
-    if(d.ok){viewGroupTags(currentGroup);loadGroups();}
-    else alert('失敗：'+d.error);
+    if(d.ok)loadGroups();else alert('失敗：'+d.error);
   });
 }
 </script>
@@ -1934,6 +1923,24 @@ def get_group_tags():
         rows = supabase.table('tag_groups').select('tag_name,group_name').eq('group_name', group).order('tag_name').execute().data or []
         filtered = [r for r in rows if not r['tag_name'].startswith('__def__:')]
         return jsonify({'tags': filtered})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/api/groups/all_tags', methods=['GET'])
+@require_admin
+def get_all_group_tags():
+    """返回所有群組的標籤清單 {group_name: [tag_names]}"""
+    try:
+        rows = supabase.table('tag_groups').select('tag_name,group_name').execute().data or []
+        result = {}
+        for r in rows:
+            if r['tag_name'].startswith('__def__:'):
+                continue
+            gn = r['group_name']
+            if gn not in result:
+                result[gn] = []
+            result[gn].append(r['tag_name'])
+        return jsonify({'groups': result})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
