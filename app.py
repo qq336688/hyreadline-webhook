@@ -1285,7 +1285,7 @@ function renameGroup(name){
 }
 function mergeGroup(source){
   var targets=allGroups.filter(function(g){return g.name!==source;}).map(function(g){return g.name;});
-  var target=prompt('將「'+source+'」合併至哪個群組？\n選項：'+targets.join('、'));
+  var target=prompt('將「'+source+'」合併至哪個群組？\\n選項：'+targets.join('、'));
   if(!target)return;
   if(!allGroupsData[target]){alert('找不到群組「'+target+'」');return;}
   if(!confirm('確定將「'+source+'」所有標籤移至「'+target+'」？'))return;
@@ -1296,7 +1296,7 @@ function mergeGroup(source){
   });
 }
 function deleteGroup(name){
-  if(!confirm('刪除群組「'+name+'」？\n其下所有標籤將移至「未分群」'))return;
+  if(!confirm('刪除群組「'+name+'」？\\n其下所有標籤將移至「未分群」'))return;
   fetch('/admin/api/groups/delete',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name})})
   .then(r=>r.json()).then(function(d){
