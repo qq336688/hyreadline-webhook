@@ -311,7 +311,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 /* ── 編輯模式 topbar 指示 ── */
 .edit-badge{font-size:10px;background:rgba(255,255,0,.25);color:#fff;padding:2px 8px;border-radius:99px;border:.5px solid rgba(255,255,255,.4)}
 /* ── Tag Popover ── */
-#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:12px;z-index:999;display:none;width:360px;max-width:90vw}
+#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:12px;z-index:999;display:none;width:360px;max-width:90vw;max-height:260px;overflow-y:auto}
 #tagPopover .pop-title{font-size:10px;color:#aaa;margin-bottom:7px;letter-spacing:.5px}
 #tagPopover .pop-tags{display:flex;flex-wrap:wrap;gap:5px}
 #tagPopover .pop-tag{font-size:11px;padding:4px 10px;border-radius:99px;background:#f0fff0;color:#2e7d32;border:.5px solid #c8e6c9;cursor:pointer;transition:background .12s,transform .12s}
@@ -602,8 +602,15 @@ function openPopover(itemId, btnEl){
   }).join('');
   var rect=btnEl.getBoundingClientRect();
   pop.style.display='block';
-  pop.style.top=(rect.bottom+6)+'px';
-  var popW=360;
+  var popH=260;var popW=360;
+  var spaceBelow=window.innerHeight-rect.bottom-8;
+  if(spaceBelow>=80){
+    pop.style.top=(rect.bottom+6)+'px';
+    pop.style.bottom='';
+  }else{
+    pop.style.bottom=(window.innerHeight-rect.top+6)+'px';
+    pop.style.top='';
+  }
   var left=Math.min(rect.left, window.innerWidth-popW-12);
   pop.style.left=Math.max(8,left)+'px';
 }
@@ -832,7 +839,7 @@ function openRenamePopup(btn){
 function closeRenamePopup(){
   if(_renamePopupEl){_renamePopupEl.remove();_renamePopupEl=null;}
 }
-function confirmRename(){
+function confirmRename(forceMerge){
   var inp=document.getElementById('_renInp');
   if(!inp)return;
   var oldName=inp.dataset.old||'';
@@ -840,26 +847,35 @@ function confirmRename(){
   if(!newName){alert('新名稱不可空白');return;}
   if(newName===oldName){closeRenamePopup();return;}
   fetch('/qa/api/rename_tag',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({old_name:oldName,new_name:newName})})
+    body:JSON.stringify({old_name:oldName,new_name:newName,force_merge:!!forceMerge})})
   .then(function(r){return r.json();}).then(function(d){
+    if(d.conflict){
+      var pop=_renamePopupEl;
+      if(pop){
+        pop.innerHTML='<div style="font-size:12px;font-weight:500;color:#854f0b;margin-bottom:6px">&#9888; 標籤已存在</div>'
+          +'<div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">「'+esc(newName)+'」已存在。<br>是否將「'+esc(oldName)+'」合併至「'+esc(newName)+'」？</div>'
+          +'<div style="display:flex;gap:5px">'
+          +'<button onclick="confirmRename(true)" style="font-size:11px;padding:4px 10px;border-radius:6px;background:#e65100;border:none;color:#fff;cursor:pointer">合併</button>'
+          +'<button onclick="closeRenamePopup()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer">取消</button>'
+          +'</div>';
+        var fakeInp=document.createElement('input');
+        fakeInp.id='_renInp';fakeInp.dataset.old=oldName;fakeInp.value=newName;
+        fakeInp.style.display='none';pop.appendChild(fakeInp);
+      }
+      return;
+    }
     if(d.ok){
       closeRenamePopup();
       var affected=d.updated||0;
       document.querySelectorAll('[data-tag="'+oldName+'"]').forEach(function(el){
         el.dataset.tag=newName;
         var span=el.closest('span.tag');
-        if(span){
-          var txt=span.childNodes[0];
-          if(txt&&txt.nodeType===3)txt.textContent=newName;
-        }
+        if(span){var txt=span.childNodes[0];if(txt&&txt.nodeType===3)txt.textContent=newName;}
       });
       Object.keys(cardTags).forEach(function(id){
         cardTags[id]=cardTags[id].map(function(t){return t===oldName?newName:t;});
       });
-      if(affected>0){
-        loadSidebarTags();
-        loadHomeTags();
-      }
+      if(affected>0){loadSidebarTags();loadHomeTags();}
     }else{alert('改名失敗：'+(d.error||'未知錯誤'));}
   }).catch(function(){alert('網路錯誤');});
 }
@@ -1048,11 +1064,15 @@ def qa_rename_tag():
     data = request.get_json()
     old_name = (data.get("old_name") or "").strip()
     new_name = (data.get("new_name") or "").strip()
+    force_merge = bool(data.get("force_merge"))
     if not old_name or not new_name:
         return jsonify({"ok": False, "error": "名稱不可空白"}), 400
     if old_name == new_name:
         return jsonify({"ok": True, "updated": 0})
     try:
+        exists = supabase.table("tag_groups").select("tag_name").eq("tag_name", new_name).execute().data
+        if exists and not force_merge:
+            return jsonify({"ok": False, "conflict": True, "new_name": new_name})
         updated = 0
         offset = 0
         while True:
@@ -1064,8 +1084,11 @@ def qa_rename_tag():
             if len(rows) < 200:
                 break
             offset += 200
-        supabase.table("tag_groups").update({"tag_name": new_name}).eq("tag_name", old_name).execute()
-        return jsonify({"ok": True, "updated": updated})
+        if exists:
+            supabase.table("tag_groups").delete().eq("tag_name", old_name).execute()
+        else:
+            supabase.table("tag_groups").update({"tag_name": new_name}).eq("tag_name", old_name).execute()
+        return jsonify({"ok": True, "updated": updated, "merged": bool(exists)})
     except Exception as e:
         print("rename_tag 失敗：", e, flush=True)
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -1398,7 +1421,7 @@ function openAdminRenamePopup(btn){
 function closeAdminRenamePopup(){
   if(_admRenPopEl){_admRenPopEl.remove();_admRenPopEl=null;}
 }
-function confirmAdminRename(){
+function confirmAdminRename(forceMerge){
   var inp=document.getElementById('_admRenInp');
   if(!inp)return;
   var oldName=inp.dataset.old||'';
@@ -1406,11 +1429,27 @@ function confirmAdminRename(){
   if(!newName){alert('新名稱不可空白');return;}
   if(newName===oldName){closeAdminRenamePopup();return;}
   fetch('/admin/api/tags/rename_global',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({old_name:oldName,new_name:newName})})
+    body:JSON.stringify({old_name:oldName,new_name:newName,force_merge:!!forceMerge})})
   .then(function(r){return r.json();}).then(function(d){
+    if(d.conflict){
+      var pop=_admRenPopEl;
+      if(pop){
+        pop.innerHTML='<div style="font-size:12px;font-weight:500;color:#854f0b;margin-bottom:6px">&#9888; 標籤已存在</div>'
+          +'<div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">「'+escHtmlG(newName)+'」已存在。<br>是否將「'+escHtmlG(oldName)+'」合併至「'+escHtmlG(newName)+'」？</div>'
+          +'<div style="display:flex;gap:5px">'
+          +'<button onclick="confirmAdminRename(true)" style="font-size:11px;padding:4px 10px;border-radius:6px;background:#e65100;border:none;color:#fff;cursor:pointer">合併</button>'
+          +'<button onclick="closeAdminRenamePopup()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer">取消</button>'
+          +'</div>';
+        var fakeInp=document.createElement('input');
+        fakeInp.id='_admRenInp';fakeInp.dataset.old=oldName;fakeInp.value=newName;
+        fakeInp.style.display='none';pop.appendChild(fakeInp);
+      }
+      return;
+    }
     if(d.ok){
       closeAdminRenamePopup();
-      showDragLog('「'+oldName+'」已改名為「'+newName+'」（共 '+d.updated+' 筆）');
+      var msg=d.merged?'「'+oldName+'」已合併至「'+newName+'」（共 '+d.updated+' 筆）':'「'+oldName+'」已改名為「'+newName+'」（共 '+d.updated+' 筆）';
+      showDragLog(msg);
       loadGroups();
     }else{alert('改名失敗：'+(d.error||'未知錯誤'));}
   }).catch(function(){alert('網路錯誤');});
@@ -1972,11 +2011,15 @@ def admin_rename_tag_global():
     d = request.get_json()
     old_name = (d.get('old_name') or '').strip()
     new_name = (d.get('new_name') or '').strip()
+    force_merge = bool(d.get('force_merge'))
     if not old_name or not new_name:
         return jsonify({'ok': False, 'error': '名稱不可空白'}), 400
     if old_name == new_name:
         return jsonify({'ok': True, 'updated': 0})
     try:
+        exists = supabase.table('tag_groups').select('tag_name').eq('tag_name', new_name).execute().data
+        if exists and not force_merge:
+            return jsonify({'ok': False, 'conflict': True, 'new_name': new_name})
         updated = 0
         offset = 0
         while True:
@@ -1988,8 +2031,11 @@ def admin_rename_tag_global():
             if len(rows) < 200:
                 break
             offset += 200
-        supabase.table('tag_groups').update({'tag_name': new_name}).eq('tag_name', old_name).execute()
-        return jsonify({'ok': True, 'updated': updated})
+        if exists:
+            supabase.table('tag_groups').delete().eq('tag_name', old_name).execute()
+        else:
+            supabase.table('tag_groups').update({'tag_name': new_name}).eq('tag_name', old_name).execute()
+        return jsonify({'ok': True, 'updated': updated, 'merged': bool(exists)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
