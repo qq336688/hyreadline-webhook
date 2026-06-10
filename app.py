@@ -240,7 +240,7 @@ aside{width:260px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8
 .tag-filter-chip:hover{border-color:#00b900;color:#1b5e20}
 .tag-filter-chip.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
 .tag-clear-btn{font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;margin-top:4px;display:none;width:100%}
-.side-tab-bar{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:8px;padding-bottom:6px;border-bottom:.5px solid #eee}
+.side-tab-bar{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:8px;padding:7px 10px;border-radius:8px;background:#e0e0e0;border:.5px solid #ccc}
 .side-tab-btn{padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;border:.5px solid transparent;color:#888;background:transparent;white-space:nowrap;font-family:inherit}
 .side-tab-btn:hover{background:#f0f0f0;color:#333}
 .side-tab-btn.active{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;font-weight:500}
@@ -1305,6 +1305,7 @@ tr:hover td{background:#fafafa}
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
       <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
+      <span id="ghostStats" style="font-size:11px;color:#888;"></span>
       <button onclick="createGroup()" style="margin-left:auto;">＋ 新增群組</button>
     </div>
     <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
@@ -1325,6 +1326,9 @@ function loadGroups(){
     allGroups=Object.keys(allGroupsData).map(function(name){
       return {name:name,count:allGroupsData[name].length};
     });
+    var totalTags=allGroups.reduce(function(s,g){return s+g.count;},0);
+    var gs=document.getElementById('ghostStats');
+    if(gs&&!gs.innerHTML.includes('清除前')){gs.textContent='tag_groups 共 '+totalTags+' 筆';}
     if(!allGroups.length&&board){board.innerHTML='<span style="font-size:12px;color:#aaa;">尚無群組資料（請先執行標籤同步）</span>';return;}
     renderDragBoard();
   }).catch(function(e){if(board)board.innerHTML='<span style="font-size:12px;color:#e53935;">連線失敗</span>';});
@@ -1475,6 +1479,8 @@ function cleanupGhostTags(){
   .then(function(r){return r.json();}).then(function(d){
     if(btn){btn.textContent='🧹 清除幽靈標籤';btn.disabled=false;}
     if(d.ok){
+      var gs=document.getElementById('ghostStats');
+      if(gs){gs.innerHTML='清除前 <b>'+d.before+'</b> 筆 → 清除後 <b>'+d.after+'</b> 筆（刪除 '+d.deleted+' 筆）';}
       showDragLog('清理完成，共刪除 '+d.deleted+' 個幽靈標籤');
       loadGroups();
     }else{alert('清理失敗：'+(d.error||''));}
@@ -1997,9 +2003,16 @@ def cleanup_ghost_tags():
                     if t: used.add(t)
             if len(rows) < 1000: break
             offset += 1000
-        # 2. 蒐集 tag_groups 所有非 __def__ 的 tag_name
-        tg_rows = supabase.table('tag_groups').select('tag_name').execute().data or []
-        ghost = [r['tag_name'] for r in tg_rows
+        # 2. 蒐集 tag_groups 所有非 __def__ 的 tag_name（分頁）
+        all_tg = []
+        tg_offset = 0
+        while True:
+            tg_rows = supabase.table('tag_groups').select('tag_name').range(tg_offset, tg_offset+999).execute().data or []
+            if not tg_rows: break
+            all_tg.extend(tg_rows)
+            if len(tg_rows) < 1000: break
+            tg_offset += 1000
+        ghost = [r['tag_name'] for r in all_tg
                  if not r['tag_name'].startswith('__def__:') and r['tag_name'] not in used]
         # 3. 批次刪除
         deleted = 0
@@ -2007,7 +2020,9 @@ def cleanup_ghost_tags():
             batch = ghost[i:i+50]
             supabase.table('tag_groups').delete().in_('tag_name', batch).execute()
             deleted += len(batch)
-        return jsonify({'ok': True, 'deleted': deleted})
+        before = len(ghost) + (len(all_tg) - len(ghost))  # total non-def
+        before_count = len([r for r in all_tg if not r['tag_name'].startswith('__def__:')])
+        return jsonify({'ok': True, 'deleted': deleted, 'before': before_count, 'after': before_count - deleted})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -2025,7 +2040,8 @@ def get_groups():
             if not r['tag_name'].startswith('__def__:'):
                 group_counts[gn] += 1
         result = [{'name': k, 'count': v} for k, v in sorted(group_counts.items())]
-        return jsonify({'groups': result})
+        total_tags = sum(v for v in group_counts.values())
+        return jsonify({'groups': result, 'total_tags': total_tags})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2160,9 +2176,17 @@ def qa_tags_with_groups():
                         tag_count[t] = tag_count.get(t, 0) + 1
             if len(rows) < 1000: break
             offset += 1000
-        # 抓群組對應
-        grp_rows = supabase.table('tag_groups').select('tag_name,group_name').execute().data or []
-        grp_map = {r['tag_name']: r['group_name'] for r in grp_rows}
+        # 抓群組對應（分頁，避免 Supabase 1000 筆限制）
+        grp_map = {}
+        g_offset = 0
+        while True:
+            grp_rows = supabase.table('tag_groups').select('tag_name,group_name').range(g_offset, g_offset+999).execute().data or []
+            if not grp_rows: break
+            for r in grp_rows:
+                if not r['tag_name'].startswith('__def__:'):
+                    grp_map[r['tag_name']] = r['group_name']
+            if len(grp_rows) < 1000: break
+            g_offset += 1000
         result = [
             {'tag': t, 'count': c, 'group': grp_map.get(t, '未分群')}
             for t, c in sorted(tag_count.items(), key=lambda x: -x[1])
