@@ -678,6 +678,7 @@ function clearSearch(){
   if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
 function hilite(text,kw){
   if(!kw)return text;
   var result='',lower=text.toLowerCase(),kl=kw.toLowerCase(),i=0;
