@@ -1442,11 +1442,13 @@ function confirmAdminRename(forceMerge){
     if(d.conflict){
       var pop=_admRenPopEl;
       if(pop){
-        pop.innerHTML='<div style="font-size:12px;font-weight:500;color:#854f0b;margin-bottom:6px">&#9888; 標籤已存在</div>'
-          +'<div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">「'+escHtmlG(newName)+'」已存在。<br>是否將「'+escHtmlG(oldName)+'」合併至「'+escHtmlG(newName)+'」？</div>'
-          +'<div style="display:flex;gap:5px">'
-          +'<button onclick="confirmAdminRename(true)" style="font-size:11px;padding:4px 10px;border-radius:6px;background:#e65100;border:none;color:#fff;cursor:pointer">合併</button>'
-          +'<button onclick="closeAdminRenamePopup()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer">取消</button>'
+        pop.style.minWidth='280px';
+        pop.innerHTML='<div style="font-size:12px;font-weight:500;color:#854f0b;margin-bottom:8px">&#9888; 標籤已存在</div>'
+          +'<div style="font-size:12px;color:#555;margin-bottom:6px;line-height:1.6">「<b>'+escHtmlG(newName)+'</b>」已存在於群組中。</div>'
+          +'<div style="font-size:12px;color:#555;margin-bottom:12px;line-height:1.6">是否將「<b>'+escHtmlG(oldName)+'</b>」<br>合併至「<b>'+escHtmlG(newName)+'</b>」？</div>'
+          +'<div style="display:flex;gap:6px">'
+          +'<button onclick="confirmAdminRename(true)" style="font-size:12px;padding:5px 14px;border-radius:6px;background:#e65100;border:none;color:#fff;cursor:pointer">合併</button>'
+          +'<button onclick="closeAdminRenamePopup()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer">取消</button>'
           +'</div>';
         var fakeInp=document.createElement('input');
         fakeInp.id='_admRenInp';fakeInp.dataset.old=oldName;fakeInp.value=newName;
