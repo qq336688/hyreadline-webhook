@@ -605,7 +605,7 @@ function openPopover(itemId, btnEl){
   var pop=document.getElementById('tagPopover');
   var existing=cardTags[itemId]||[];
   /* 只顯示尚未加入的標籤 */
-  var dynamicTags=allTagsData.map(function(x){return x.name||x});
+  var dynamicTags=allTagsData.map(function(x){return x.tag||x.name||x;});
   var available=dynamicTags.filter(function(t){return existing.indexOf(t)<0});
   if(!available.length){
     pop.style.display='none';
