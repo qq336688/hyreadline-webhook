@@ -73,7 +73,7 @@ input:focus{border-color:#00b900}
     <label>帳號</label>
     <input type="text" name="username" placeholder="請輸入帳號" autofocus>
     <label>密碼</label>
-    <input type="text" name="password" placeholder="請輸入密碼">
+    <div style="position:relative"><input type="password" id="pwdField" name="password" placeholder="請輸入密碼" style="width:100%;padding-right:38px"><span onclick="var f=document.getElementById('pwdField');f.type=f.type==='password'?'text':'password';this.textContent=f.type==='password'?'👁':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;user-select:none">👁</span></div>
     <button class="btn" type="submit">登入</button>
   </form>
 </div></body></html>'''
@@ -132,7 +132,7 @@ input:focus{border-color:#00b900}
     <label>帳號</label>
     <input type="text" name="username" placeholder="請輸入帳號" autofocus>
     <label>密碼</label>
-    <input type="text" name="password" placeholder="請輸入密碼">
+    <div style="position:relative"><input type="password" id="pwdField" name="password" placeholder="請輸入密碼" style="width:100%;padding-right:38px"><span onclick="var f=document.getElementById('pwdField');f.type=f.type==='password'?'text':'password';this.textContent=f.type==='password'?'👁':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:15px;user-select:none">👁</span></div>
     <button class="btn" type="submit">登入</button>
   </form>
 </div></body></html>'''
