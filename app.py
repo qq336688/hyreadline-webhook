@@ -1111,6 +1111,7 @@ def admin_page():
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:#f5f7fa;min-height:100vh}
+#adminToast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 22px;border-radius:8px;font-size:13px;z-index:9999;display:none;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.25)}
 .topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
 .topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
 .tabs{display:flex;background:#fff;border-bottom:1px solid #e0e0e0;padding:0 18px}
@@ -1159,6 +1160,7 @@ tr:hover td{background:#fafafa}
 .msg{font-size:12px;color:#00b900;margin-top:8px}
 .msg.err{color:#e53935}
 </style></head><body>
+<div id="adminToast"></div>
 <div class="topbar">⚙ HyRead Q&A 管理介面
   <a href="/qa">← 回查詢頁面</a>
   <a href="/admin/logout" style="margin-left:6px">登出</a>
@@ -1278,7 +1280,7 @@ tr:hover td{background:#fafafa}
     <input type="hidden" id="editUserId">
     <div style="display:grid;gap:12px">
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號（不可修改）</label><input id="editUsrName" type="text" disabled style="width:100%;padding:8px 10px;border:.5px solid #eee;border-radius:6px;font-size:13px;background:#f9f9f9;box-sizing:border-box"></div>
-      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="password" autocomplete="new-password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="editDisplayName" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 可進入後台</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_filter"> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_category"> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_stats"> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_token"> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_tags"> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_groups"> 群組管理</label></div></div>
     </div>
@@ -1795,7 +1797,7 @@ function openEditModal(id){
   if(!u)return;
   document.getElementById('editUserId').value=u.id;
   document.getElementById('editUsrName').value=u.username;
-  document.getElementById('editPwd').value='';
+  document.getElementById('editPwd').value='';setTimeout(function(){document.getElementById('editPwd').value='';},100);
   document.getElementById('editDisplayName').value=u.display_name||'';
   document.getElementById('editCanQuery').checked=u.can_query!==false;
   document.getElementById('editCanAdmin').checked=u.can_admin!==false;
@@ -1806,6 +1808,10 @@ function openEditModal(id){
   });
   document.getElementById('editModalMsg').textContent='';
   document.getElementById('userEditModal').style.display='flex';
+}
+function showToast(msg){
+  var t=document.getElementById('adminToast');t.textContent=msg;t.style.display='block';
+  setTimeout(function(){t.style.display='none';},2500);
 }
 function closeEditModal(){document.getElementById('userEditModal').style.display='none';}
 function submitEditUser(){
@@ -1829,7 +1835,7 @@ function submitEditUser(){
     return r.json();
   }).then(function(d){
     if(d.error){document.getElementById('editModalMsg').textContent='儲存失敗：'+d.error;}
-    else{closeEditModal();loadUsers();}
+    else{closeEditModal();loadUsers();showToast('已更新 '+(payload.display_name||'帳號')+'');}
   }).catch(function(e){document.getElementById('editModalMsg').textContent='連線錯誤：'+e.message;});
 }
 function delUser(id){
