@@ -1418,7 +1418,7 @@ function renderDragBoard(){
       +'</div>';
     var zone='<div class="drag-zone" data-grp="'+escAttrG(grpName)+'" style="padding:8px;min-height:60px;max-height:400px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;">';
     tags.forEach(function(t){
-      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 6px 3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:text;display:inline-flex;align-items:center;gap:2px;position:relative;">'+escHtmlG(t)+'<button class="adm-tag-ren" data-tag="'+escAttrG(t)+'" onclick="openAdminRenamePopup(this);event.stopPropagation()" title="改名" style="cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;border:none;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;color:#388e3c;flex-shrink:0;padding:0;">✏</button></span>';
+      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 6px 3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:text;display:inline-flex;align-items:center;gap:2px;position:relative;">'+escHtmlG(t)+'<button class="adm-tag-ren" data-tag="'+escAttrG(t)+'" onclick="openAdminRenamePopup(this);event.stopPropagation()" title="改名" style="cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;border:none;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;color:#388e3c;flex-shrink:0;padding:0;">✏</button>'<button class="adm-tag-del" data-tag="'+escAttrG(t)+'" onclick="deleteTagChip(this);event.stopPropagation()" title="刪除標籤" style="cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;border:none;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;color:#c62828;flex-shrink:0;padding:0;">✕</button></span>';
     });
     zone+='</div>';
     col.innerHTML=hdr+zone;
@@ -1519,6 +1519,24 @@ function openAdminRenamePopup(btn){
 }
 function closeAdminRenamePopup(){
   if(_admRenPopEl){_admRenPopEl.remove();_admRenPopEl=null;}
+}
+function deleteTagChip(btn){
+  var tag=btn.dataset.tag;
+  if(!tag)return;
+  fetch('/admin/api/tags/delete_chip',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tag_name:tag})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){
+      showDragLog('標籤「'+tag+'」已刪除');
+      loadGroups();
+    } else if(d.in_use_count){
+      alert('無法刪除「'+tag+'」\n此標籤目前被 '+d.in_use_count+' 筆 QA 使用中。\n請先在查詢介面移除相關 QA 的標籤，再進行刪除。');
+    } else {
+      alert('刪除失敗：'+(d.error||'未知錯誤'));
+    }
+  })
+  .catch(function(){alert('連線失敗，請稍後再試');});
 }
 function confirmAdminRename(forceMerge){
   var inp=document.getElementById('_admRenInp');
@@ -2280,6 +2298,25 @@ def update_tag_group():
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/admin/api/tags/delete_chip', methods=['POST'])
+@require_admin
+def admin_delete_tag_chip():
+    """從 tag_groups 刪除標籤，若 qa_items 仍有使用則拒絕"""
+    data = request.get_json()
+    tag_name = (data or {}).get('tag_name', '').strip()
+    if not tag_name:
+        return jsonify({'error': '缺少 tag_name'}), 400
+    try:
+        res = supabase.table('qa_items').select('id', count='exact') \
+            .contains('tags', [tag_name]).execute()
+        in_use = res.count if res.count else 0
+        if in_use > 0:
+            return jsonify({'error': f'標籤被 {in_use} 筆 QA 使用', 'in_use_count': in_use})
+        supabase.table('tag_groups').delete().eq('tag_name', tag_name).execute()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/qa/api/tags_with_groups', methods=['GET'])
 @require_qa
