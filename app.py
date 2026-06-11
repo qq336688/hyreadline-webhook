@@ -429,15 +429,22 @@ var TAGS_DEFAULT_SHOW=30;
 var tagsExpanded=false;
 
 function loadTagsSummary(){
+  var listEl=document.getElementById('tagFilterList');
+  if(listEl)listEl.innerHTML='<div style="font-size:11px;color:#aaa;padding:4px">載入中…</div>';
   fetch('/qa/api/tags_with_groups').then(function(r){return r.json()}).then(function(d){
+    if(d.error||!d.tags){throw new Error(d.error||'no tags');}
     allTagsData=d.tags||[];
     renderGroupedTagChips(allTagsData);
     var homeEl=document.getElementById('homeTagChips');
     if(homeEl){renderHomeTagChips(allTagsData,homeEl);}
-  }).catch(function(){
+  }).catch(function(err){
+    /* 先嘗試 fallback API */
     fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
+      if(!tags||!tags.length)throw new Error('empty');
       allTagsData=tags;
       renderTagChips(tags,TAGS_DEFAULT_SHOW);
+    }).catch(function(){
+      if(listEl)listEl.innerHTML='<div style="font-size:11px;color:#e53935;padding:4px">標籤載入失敗，<a href="#" onclick="loadTagsSummary();return false;" style="color:#1565c0">重試</a></div>';
     });
   });
 }
