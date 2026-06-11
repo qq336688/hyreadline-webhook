@@ -1203,7 +1203,7 @@ tr:hover td{background:#fafafa}
 .msg.err{color:#e53935}
 </style></head><body>
 <div id="adminToast"></div>
-<div class="topbar">⚙ HyRead Q&A 管理介面
+<div class="topbar">⚙ HyRead Q&A 管理介面<span id="adminUsername" style="font-size:11px;opacity:.75;margin-left:8px;"></span>
   <a href="/qa">← 回查詢頁面</a>
   <a href="/admin/logout" style="margin-left:6px">登出</a>
 </div>
@@ -2013,6 +2013,7 @@ loadWords();
 /* 依目前登入者的後台權限隱藏無存取權的分頁 */
 (function(){
   fetch('/admin/api/me').then(function(r){return r.json();}).then(function(p){
+    var uEl=document.getElementById('adminUsername');if(uEl)(uEl.textContent=p.display_name||p.username||'')
     var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',groupmgr:'groups'};
     Object.keys(map).forEach(function(tabName){
       var permKey='perm_'+map[tabName];
@@ -2358,9 +2359,11 @@ def qa_tags_with_groups():
 @require_admin
 def get_me():
     username = session.get("admin_username", "")
-    result = supabase.table("admin_users").select("perm_filter,perm_category,perm_stats,perm_token,perm_users,perm_tags,perm_groups").eq("username", username).execute()
+    result = supabase.table("admin_users").select("username,display_name,perm_filter,perm_category,perm_stats,perm_token,perm_users,perm_tags,perm_groups").eq("username", username).execute()
     if result.data:
-        return jsonify(result.data[0])
+        d = result.data[0]
+        d["username"] = d.get("username") or username
+        return jsonify(d)
     return jsonify({})
 
 @app.route("/admin/api/users", methods=["GET"])
