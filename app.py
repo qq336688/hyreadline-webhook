@@ -803,7 +803,7 @@ function renderResults(d,kw){
     var itemId=r.id;
     var tags=Array.isArray(r.tags)&&r.tags.length?r.tags:
              (r.category||'').split(/[、,，]/).filter(function(c){return c.trim()}).slice(0,3);
-    var qBody=(r.q_text||'').replace(/^Q\d+[：:]\s*/,'');
+    var qBody=(r.q_text||'').replace(/^Q\\d+[：:]\\s*/,'');
     html+='<div class="card" data-id="'+itemId+'">'
       +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div>'
       +'<div class="q-txt">'+hilite(muteMetaInfo(qBody),kw)+'</div></div>'
