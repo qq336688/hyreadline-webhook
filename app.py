@@ -627,7 +627,7 @@ function renderPopoverTabs(itemId){
     return '<button class="pop-grp-tab" data-grp="'+escAttr(g)+'" style="font-size:10px;padding:2px 8px;border-radius:5px;cursor:pointer;font-family:inherit;'+s+'">'+esc(g)+'</button>';
   }).join('');
   tabBar.querySelectorAll('.pop-grp-tab').forEach(function(btn){
-    btn.addEventListener('click',function(){popActiveGroup=this.dataset.grp;renderPopoverTabs(itemId);});
+    btn.addEventListener('click',function(e){e.stopPropagation();popActiveGroup=this.dataset.grp;renderPopoverTabs(itemId);});
   });
   var chips=(groups[popActiveGroup]||[]).map(function(t){
     return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+escAttr(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
@@ -1213,7 +1213,7 @@ tr:hover td{background:#fafafa}
   <div class="tab" data-tab="stats" onclick="showTab(this,'stats')">📊 分析總覽</div>
   <div class="tab" data-tab="token" onclick="showTab(this,'token')">⚡ Token 用量</div>
   <div class="tab" data-tab="users" onclick="showTab(this,'users')">👤 帳號管理</div>
-  <div class="tab" data-tab="groupmgr" onclick="showTab(this,'groupmgr')">🗂️ 群組管理</div>
+  <div class="tab" data-tab="groupmgr" onclick="showTab(this,'groupmgr')">🗂️ 標籤群組管理</div>
 </div>
 
 <!-- 過濾詞句 -->
@@ -1305,7 +1305,7 @@ tr:hover td{background:#fafafa}
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號 *</label><input id="addUsr" type="text" placeholder="登入用帳號" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">密碼 *（至少6字元）</label><input id="addPwd" type="text" placeholder="密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="addDisplayName" type="text" placeholder="姓名（顯示用）" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 可進入後台</label></div><div style="padding:6px 10px;background:#f0f9f0;border-radius:6px;border-left:3px solid #a5d6a7;margin-bottom:6px"><div style="font-size:10px;color:#888;margin-bottom:4px">查詢功能細項</div><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_tags"> ✏️ 編輯標籤</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_filter" checked> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_category" checked> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_stats" checked> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_token" checked> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_users" checked> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_groups" checked> 群組管理</label></div></div>
+      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 可進入後台</label></div><div style="padding:6px 10px;background:#f0f9f0;border-radius:6px;border-left:3px solid #a5d6a7;margin-bottom:6px"><div style="font-size:10px;color:#888;margin-bottom:4px">查詢功能細項</div><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_tags"> ✏️ 編輯標籤</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_filter" checked> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_category" checked> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_stats" checked> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_token" checked> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_users" checked> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_groups" checked> 標籤群組管理</label></div></div>
     </div>
     <div id="addModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
@@ -1324,7 +1324,7 @@ tr:hover td{background:#fafafa}
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號（不可修改）</label><input id="editUsrName" type="text" disabled style="width:100%;padding:8px 10px;border:.5px solid #eee;border-radius:6px;font-size:13px;background:#f9f9f9;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="text" autocomplete="new-password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="editDisplayName" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 可進入後台</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div><div style="padding:6px 10px;background:#f0f9f0;border-radius:6px;border-left:3px solid #a5d6a7;margin-bottom:6px"><div style="font-size:10px;color:#888;margin-bottom:4px">查詢功能細項</div><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_tags"> ✏️ 編輯標籤</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_filter"> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_category"> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_stats"> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_token"> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_groups"> 群組管理</label></div></div>
+      <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 可進入後台</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div><div style="padding:6px 10px;background:#f0f9f0;border-radius:6px;border-left:3px solid #a5d6a7;margin-bottom:6px"><div style="font-size:10px;color:#888;margin-bottom:4px">查詢功能細項</div><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_tags"> ✏️ 編輯標籤</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_filter"> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_category"> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_stats"> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_token"> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_groups"> 標籤群組管理</label></div></div>
     </div>
     <div id="editModalMsg" style="font-size:12px;margin-top:10px;min-height:18px;color:#e53935"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
@@ -1351,7 +1351,7 @@ tr:hover td{background:#fafafa}
 <!-- 群組管理 -->
 <div class="panel" id="tab-groupmgr">
   <div class="card">
-    <div class="card-title">🗂️ 群組管理</div>
+    <div class="card-title">🗂️ 標籤群組管理</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
       <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
@@ -1366,6 +1366,8 @@ tr:hover td{background:#fafafa}
 var allGroups=[];
 var allGroupsData={};
 var dragState={};
+var customGroupOrder=null;
+var colDragSrc=null;
 
 function loadGroups(){
   var board=document.getElementById('dragBoard');
@@ -1390,16 +1392,24 @@ function escHtmlG(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').r
 function renderDragBoard(){
   var board=document.getElementById('dragBoard');
   if(!board)return;
-  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
-  var orderedGrps=[];
-  order.forEach(function(g){if(allGroupsData[g]!==undefined)orderedGrps.push(g);});
-  Object.keys(allGroupsData).forEach(function(g){if(order.indexOf(g)<0)orderedGrps.push(g);});
+  var orderedGrps;
+  if(customGroupOrder){
+    orderedGrps=customGroupOrder.filter(function(g){return allGroupsData[g]!==undefined;});
+    Object.keys(allGroupsData).forEach(function(g){if(orderedGrps.indexOf(g)<0)orderedGrps.push(g);});
+  } else {
+    var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+    orderedGrps=[];
+    order.forEach(function(g){if(allGroupsData[g]!==undefined)orderedGrps.push(g);});
+    Object.keys(allGroupsData).forEach(function(g){if(order.indexOf(g)<0)orderedGrps.push(g);});
+  }
   board.innerHTML='';
   orderedGrps.forEach(function(grpName){
     var tags=(allGroupsData[grpName]||[]).slice().sort();
     var col=document.createElement('div');
     col.style.cssText='min-width:200px;max-width:340px;flex:1;border-radius:8px;border:0.5px solid #e0e0e0;overflow:hidden;background:#fafafa;';
-    var hdr='<div style="padding:7px 10px;background:#f0f0f0;border-bottom:0.5px solid #e0e0e0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">'
+    col.dataset.grp=grpName;
+    var hdr='<div class="col-hdr" draggable="true" data-grp="'+escAttrG(grpName)+'" style="padding:7px 10px;background:#f0f0f0;border-bottom:0.5px solid #e0e0e0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;cursor:grab;">'
+      +'<span style="font-size:10px;color:#bbb;margin-right:1px;">&#8942;</span>'
       +'<span style="font-size:13px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtmlG(grpName)+'</span>'
       +'<span style="font-size:10px;background:#e8f5e9;color:#1b5e20;padding:1px 6px;border-radius:9px;">'+tags.length+'</span>'
       +'<button class="col-act" data-act="rename" data-n="'+escAttrG(grpName)+'" style="font-size:10px;padding:1px 5px;cursor:pointer;">改名</button>'
@@ -1413,6 +1423,32 @@ function renderDragBoard(){
     zone+='</div>';
     col.innerHTML=hdr+zone;
     board.appendChild(col);
+    var hdrEl=col.querySelector('.col-hdr');
+    if(hdrEl){
+      hdrEl.addEventListener('dragstart',function(e){
+        if(dragState.tag)return;
+        colDragSrc=grpName;
+        e.dataTransfer.effectAllowed='move';
+        e.dataTransfer.setData('text/plain',grpName);
+        setTimeout(function(){col.style.opacity='0.4';},0);
+      });
+      hdrEl.addEventListener('dragend',function(){col.style.opacity='';colDragSrc=null;});
+      hdrEl.addEventListener('dragover',function(e){
+        if(!colDragSrc||colDragSrc===grpName)return;
+        e.preventDefault();col.style.outline='2px solid #66bb6a';
+      });
+      hdrEl.addEventListener('dragleave',function(){col.style.outline='';});
+      hdrEl.addEventListener('drop',function(e){
+        e.preventDefault();col.style.outline='';
+        if(!colDragSrc||colDragSrc===grpName)return;
+        var cur=Array.from(document.querySelectorAll('#dragBoard [data-grp]')).map(function(c){return c.dataset.grp;});
+        var from=cur.indexOf(colDragSrc),to=cur.indexOf(grpName);
+        if(from<0||to<0)return;
+        cur.splice(from,1);cur.splice(to,0,colDragSrc);
+        customGroupOrder=cur;
+        renderDragBoard();
+      });
+    }
     col.querySelectorAll('.col-act').forEach(function(el){
       el.addEventListener('click',function(){
         var n=this.dataset.n,act=this.dataset.act;
