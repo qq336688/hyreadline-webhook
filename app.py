@@ -345,7 +345,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 </div>
 <!-- Tag Popover -->
 <div id="tagPopover">
-  <div class="pop-title">選擇標籤</div>
+  <div id="popTabBar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;padding:5px 7px;border-radius:7px;background:#e8e8e8;border:.5px solid #ccc"></div>
   <div class="pop-tags" id="popTagList"></div>
 </div>
 <div class="yearbar">
@@ -415,7 +415,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false,sidebarActiveGroup=null,homeActiveGroup=null;
+var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false,sidebarActiveGroup=null,homeActiveGroup=null,popActiveGroup=null;
 /* Popover 用的預設標籤 */
 var PRESET_TAGS=['維修','保固','召回','APP','帳號','物流','閱讀器','書櫃','破屏','線條','出線','忘記密碼','開放式','封閉式'];
 /* 各卡片目前的 tags 暫存 {id: [tags]} */
@@ -600,20 +600,39 @@ function toggleEditMode(){
 }
 
 /* ── Popover 控制 ── */
+function renderPopoverTabs(itemId){
+  var existing=cardTags[itemId]||[];
+  var groups={};
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  allTagsData.forEach(function(x){
+    var t=x.tag||x.name||x; var g=x.group||'未分群';
+    if(existing.indexOf(t)<0){if(!groups[g])groups[g]=[];groups[g].push(t);}
+  });
+  var allGrps=[];
+  order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
+  Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
+  if(!allGrps.length)return false;
+  if(!popActiveGroup||allGrps.indexOf(popActiveGroup)<0)popActiveGroup=allGrps[0];
+  var tabHtml=allGrps.map(function(g){
+    var act=g===popActiveGroup?' style="background:#e8f5e9;color:#1b5e20;border:.5px solid #a5d6a7;font-weight:500"':
+      ' style="color:#666;background:transparent;border:.5px solid transparent"';
+    return '<button onclick="switchPopTab(\''+esc(g)+'\','+itemId+')" '+act+' style="font-size:10px;padding:2px 8px;border-radius:5px;cursor:pointer;font-family:inherit">'+esc(g)+'</button>';
+  }).join('');
+  document.getElementById('popTabBar').innerHTML=tabHtml;
+  var chips=(groups[popActiveGroup]||[]).map(function(t){
+    return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
+  }).join('');
+  document.getElementById('popTagList').innerHTML=chips;
+  return true;
+}
+function switchPopTab(grp,itemId){popActiveGroup=grp;renderPopoverTabs(itemId);}
 function openPopover(itemId, btnEl){
   popTargetId=itemId;
   var pop=document.getElementById('tagPopover');
-  var existing=cardTags[itemId]||[];
-  /* 只顯示尚未加入的標籤 */
-  var dynamicTags=allTagsData.map(function(x){return x.tag||x.name||x;});
-  var available=dynamicTags.filter(function(t){return existing.indexOf(t)<0});
-  if(!available.length){
+  if(!renderPopoverTabs(itemId)){
     pop.style.display='none';
     return;
   }
-  document.getElementById('popTagList').innerHTML=available.map(function(t){
-    return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
-  }).join('');
   var rect=btnEl.getBoundingClientRect();
   pop.style.display='block';
   var popH=Math.min(260,pop.scrollHeight||260);var popW=360;
@@ -1380,7 +1399,7 @@ function renderDragBoard(){
       +'</div>';
     var zone='<div class="drag-zone" data-grp="'+escAttrG(grpName)+'" style="padding:8px;min-height:60px;max-height:400px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;">';
     tags.forEach(function(t){
-      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 6px 3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:none;display:inline-flex;align-items:center;gap:2px;position:relative;">'+escHtmlG(t)+'<button class="adm-tag-ren" data-tag="'+escAttrG(t)+'" onclick="openAdminRenamePopup(this);event.stopPropagation()" title="改名" style="cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;border:none;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;color:#388e3c;flex-shrink:0;padding:0;">✏</button></span>';
+      zone+='<span class="drag-chip" draggable="true" data-tag="'+escAttrG(t)+'" data-grp="'+escAttrG(grpName)+'" style="padding:3px 6px 3px 9px;border-radius:99px;font-size:11px;border:0.5px solid #ddd;background:#fff;cursor:grab;user-select:text;display:inline-flex;align-items:center;gap:2px;position:relative;">'+escHtmlG(t)+'<button class="adm-tag-ren" data-tag="'+escAttrG(t)+'" onclick="openAdminRenamePopup(this);event.stopPropagation()" title="改名" style="cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;border:none;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;color:#388e3c;flex-shrink:0;padding:0;">✏</button></span>';
     });
     zone+='</div>';
     col.innerHTML=hdr+zone;
