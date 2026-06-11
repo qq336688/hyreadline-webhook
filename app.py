@@ -73,7 +73,7 @@ input:focus{border-color:#00b900}
     <label>帳號</label>
     <input type="text" name="username" placeholder="請輸入帳號" autofocus>
     <label>密碼</label>
-    <input type="password" name="password" placeholder="請輸入密碼">
+    <input type="text" name="password" placeholder="請輸入密碼">
     <button class="btn" type="submit">登入</button>
   </form>
 </div></body></html>'''
@@ -132,7 +132,7 @@ input:focus{border-color:#00b900}
     <label>帳號</label>
     <input type="text" name="username" placeholder="請輸入帳號" autofocus>
     <label>密碼</label>
-    <input type="password" name="password" placeholder="請輸入密碼">
+    <input type="text" name="password" placeholder="請輸入密碼">
     <button class="btn" type="submit">登入</button>
   </form>
 </div></body></html>'''
@@ -210,7 +210,16 @@ def ping():
 @app.route("/qa")
 @require_qa
 def qa_page():
-    return '''<!DOCTYPE html>
+    uname = session.get("qa_username", "")
+    uinfo = supabase.table("admin_users").select("display_name,can_admin").eq("username", uname).execute()
+    display_name = uname
+    can_admin = False
+    if uinfo.data:
+        display_name = uinfo.data[0].get("display_name") or uname
+        can_admin = bool(uinfo.data[0].get("can_admin", False))
+    admin_btn = '<a href="/admin" style="margin-left:6px">⚙ 管理介面</a>' if can_admin else ''
+    user_label = f'<span style="margin-left:6px;font-size:11px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.15);padding:3px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3)">{display_name}</span>'
+    page = '''<!DOCTYPE html>
 <html lang="zh-TW"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HyRead Q&A 查詢</title>
@@ -327,7 +336,8 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
     style="margin-left:auto;background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.4);color:#fff;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">
     ✏️ 編輯標籤
   </button>
-  <a href="/admin" style="margin-left:6px">⚙ 管理介面</a>
+  __ADMIN_BTN__
+  __USER_LABEL__
   <a href="/qa/logout" style="margin-left:6px">登出</a>
 </div>
 <!-- Tag Popover -->
@@ -886,6 +896,7 @@ function confirmRename(forceMerge){
 }
 document.addEventListener('click',function(){closeRenamePopup();});
 </script></body></html>'''
+    return page.replace('__ADMIN_BTN__', admin_btn).replace('__USER_LABEL__', user_label)
 
 # ──────────────────────────────────────────────
 # Q&A API
@@ -1261,7 +1272,7 @@ tr:hover td{background:#fafafa}
     <div style="font-size:15px;font-weight:500;margin-bottom:20px">＋ 新增帳號</div>
     <div style="display:grid;gap:12px">
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號 *</label><input id="addUsr" type="text" placeholder="登入用帳號" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
-      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">密碼 *（至少6字元）</label><input id="addPwd" type="password" placeholder="密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">密碼 *（至少6字元）</label><input id="addPwd" type="text" placeholder="密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="addDisplayName" type="text" placeholder="姓名（顯示用）" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanQuery" checked> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="addCanAdmin"> 可進入後台</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_filter" checked> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_category" checked> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_stats" checked> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_token" checked> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_users" checked> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_tags" checked> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="addPerm_groups" checked> 群組管理</label></div></div>
     </div>
@@ -1280,7 +1291,7 @@ tr:hover td{background:#fafafa}
     <input type="hidden" id="editUserId">
     <div style="display:grid;gap:12px">
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">帳號（不可修改）</label><input id="editUsrName" type="text" disabled style="width:100%;padding:8px 10px;border:.5px solid #eee;border-radius:6px;font-size:13px;background:#f9f9f9;box-sizing:border-box"></div>
-      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="password" autocomplete="new-password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">新密碼（留空則不修改）</label><input id="editPwd" type="text" autocomplete="new-password" placeholder="留空不更改密碼" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div><label style="font-size:11px;color:#777;display:block;margin-bottom:4px">顯示名稱</label><input id="editDisplayName" type="text" style="width:100%;padding:8px 10px;border:.5px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
       <div style="display:flex;gap:20px;margin-bottom:4px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanQuery"> 查詢模組</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editCanAdmin"> 可進入後台</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="editIsActive"> 啟用</label></div><div style="padding:8px 10px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ddd"><div style="font-size:10px;color:#999;margin-bottom:6px">後台功能細項</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px"><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_filter"> 過濾詞句</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_category"> 分類管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_stats"> 分析總覽</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_token"> Token 用量</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_users"> 帳號管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_tags"> 標籤管理</label><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="editPerm_groups"> 群組管理</label></div></div>
     </div>
