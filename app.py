@@ -1304,5 +1304,264 @@ def should_skip(msg, db_phrases, db_senders, db_keywords):
     return False
 
 
+# ──────────────────────────────────────────────
+# LINE Webhook
+# ──────────────────────────────────────────────
+
+@app.route("/callback", methods=["POST"])
+def callback():
+    signature = request.headers.get("X-Line-Signature", "")
+    body = request.get_data(as_text=True)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return "OK"
+
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_text(event):
+    text   = (event.message.text or "").strip()
+    sender = get_sender_name(event)
+    if sender in HARD_BOT_SENDERS:
+        return
+    if any(text.startswith(p) for p in HARD_BOT_PREFIXES):
+        return
+    if text.startswith("整理QA"):
+        parts = text.split()
+        year  = parts[1] if len(parts) > 1 else None
+        group_id = event.source.group_id if hasattr(event.source, "group_id") else None
+        threading.Thread(target=run_analysis, args=(year, group_id), daemon=True).start()
+        line_bot_api.reply_message(event.reply_token,
+            TextSendMessage(text="⏳ 開始整理" + ("全部新增" if not year else year + "年") + "資料，完成後通知你！"))
+        return
+    if text in HARD_PHRASES:
+        return
+    if not EMOJI_RE.sub("", text).strip():
+        return
+    if any(kw in text for kw in HARD_SYSTEM):
+        return
+    save_message(text, sender)
+
+
+@handler.add(MessageEvent, message=ImageMessage)
+def handle_image(event):
+    sender = get_sender_name(event)
+    if sender in HARD_BOT_SENDERS:
+        return
+    try:
+        content = line_bot_api.get_message_content(event.message.id)
+        data    = b"".join(content.iter_content())
+        filename = "images/" + event.message.id + ".jpg"
+        url = upload_file(data, filename, "image/jpeg")
+    except Exception as e:
+        print("圖片上傳失敗：", e, flush=True)
+        url = ""
+    save_message("[圖片]", sender, file_url=url, file_type="image")
+
+
+# ──────────────────────────────────────────────
+# 整理QA 背景分析
+# ──────────────────────────────────────────────
+
+def run_analysis(year, group_id):
+    try:
+        tag_rows  = supabase.table("tag_groups").select("tag_name").execute().data
+        tag_vocab = list({r["tag_name"] for r in tag_rows if r.get("tag_name")})
+        tag_hint  = "、".join(tag_vocab[:80]) if tag_vocab else ""
+
+        if year:
+            rows = fetch_messages_by_year(year)
+        else:
+            rows = fetch_new_messages(limit=50)
+
+        if not rows:
+            _notify(group_id, "⚠️ 沒有找到需要整理的新訊息。")
+            return
+
+        db_phrases, db_senders, db_keywords = get_db_filters()
+        filtered = [r for r in rows if not should_skip(r, db_phrases, db_senders, db_keywords)]
+
+        if not filtered:
+            _notify(group_id, "⚠️ 過濾後沒有可分析的訊息。")
+            return
+
+        BATCH = 50
+        total_batches = (len(filtered) + BATCH - 1) // BATCH
+        saved = 0
+
+        for i in range(0, len(filtered), BATCH):
+            batch      = filtered[i:i + BATCH]
+            batch_num  = (i // BATCH) + 1
+            title_year = year or datetime.now().strftime("%Y")
+
+            existing = supabase.table("qa_results")                .select("id").eq("year", title_year).eq("batch_num", batch_num).execute()
+            if existing.data:
+                continue
+
+            prompt = _build_prompt(batch, tag_hint)
+            try:
+                from google.genai import types as gtypes
+                import json as _json
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                    config=gtypes.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        thinking_config=gtypes.ThinkingConfig(thinking_budget=0)
+                    )
+                )
+                raw = response.text.strip()
+                raw = re.sub(r"^```json\s*", "", raw)
+                raw = re.sub(r"```\s*$", "", raw)
+                data2 = _json.loads(raw)
+            except Exception as e:
+                print("Gemini 失敗（批次%d）：%s" % (batch_num, e), flush=True)
+                continue
+
+            categories = data2.get("suggested_categories", "")
+            content    = _build_qa_text(data2)
+            title      = "%s年 第%d批" % (title_year, batch_num)
+            result = supabase.table("qa_results").insert({
+                "year": title_year, "batch_num": batch_num, "title": title,
+                "content": content,
+                "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "start_row": i, "end_row": i + len(batch) - 1,
+                "total_msgs": len(batch), "categories": categories
+            }).execute()
+            batch_id = result.data[0]["id"]
+
+            items = []
+            for qa in data2.get("qa_list", []):
+                items.append({
+                    "batch_id": batch_id, "year": title_year,
+                    "batch_num": batch_num,
+                    "q_text": qa.get("q_text", ""),
+                    "a_text": qa.get("a_text", ""),
+                    "category": qa.get("category", categories),
+                    "tags": qa.get("tags", []),
+                    "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+                })
+            if items:
+                supabase.table("qa_items").insert(items).execute()
+
+            try:
+                usage = response.usage_metadata
+                save_token_log(title, {
+                    "input":  usage.prompt_token_count,
+                    "output": usage.candidates_token_count,
+                    "total":  usage.total_token_count
+                })
+            except Exception:
+                pass
+
+            saved += len(items)
+
+            if get_today_tokens() > 800000:
+                _notify(group_id, "⚠️ 今日 Token 超過 80 萬，自動暫停。請明日繼續。")
+                return
+
+        _notify(group_id, "✅ 整理完成！共新增 %d 筆 Q&A（%d 批次）。" % (saved, total_batches))
+
+    except Exception as e:
+        print("run_analysis 失敗：", e, flush=True)
+        _notify(group_id, "❌ 整理失敗：" + str(e)[:80])
+
+
+def fetch_new_messages(limit=50):
+    last = get_setting("last_analyzed_date") or "2000/01/01 00:00"
+    rows = []
+    offset = 0
+    while True:
+        r = (supabase.table("messages")
+             .select("id,text,sender,created_at")
+             .gt("created_at", last)
+             .order("created_at")
+             .range(offset, offset + 999)
+             .execute())
+        rows.extend(r.data)
+        if len(r.data) < 1000:
+            break
+        offset += 1000
+    if rows:
+        set_setting("last_analyzed_date", rows[-1]["created_at"])
+    return rows[:limit]
+
+
+def fetch_messages_by_year(year):
+    rows = []
+    offset = 0
+    while True:
+        r = (supabase.table("messages")
+             .select("id,text,sender,created_at")
+             .like("created_at", year + "/%")
+             .order("created_at")
+             .range(offset, offset + 999)
+             .execute())
+        rows.extend(r.data)
+        if len(r.data) < 1000:
+            break
+        offset += 1000
+    return rows
+
+
+def _build_prompt(rows, tag_hint=""):
+    lines = ["[%s] %s：%s" % (r.get("created_at",""), r.get("sender",""), r.get("text","")) for r in rows]
+    conversation = "\n".join(lines)
+    tag_section = "\n優先從以下已知標籤選用（清單外才可新增）：" + tag_hint + "\n" if tag_hint else ""
+    return """你是一個專業的客服 Q&A 整理助手。以下是 HyRead 電子書客服 LINE 群組的對話紀錄（共 """ + str(len(rows)) + """ 則）。
+
+請將這些對話整理成結構化 JSON，格式如下：
+
+{
+  "qa_list": [
+    {
+      "q_text": "Q1：問題摘要（YYYY/MM/DD HH:MM 提問者姓名）",
+      "a_text": "A：回答摘要（YYYY/MM/DD HH:MM 回答者姓名）",
+      "category": "主分類名稱",
+      "tags": ["標籤1", "標籤2", "標籤3"]
+    }
+  ],
+  "general_messages": ["YYYY/MM/DD HH:MM 發話者：訊息內容"],
+  "suggested_categories": "分類A, 分類B"
+}
+
+整理規則：
+1. 有明確問答關係 → 放入 qa_list；沒有 → 放入 general_messages
+2. 相同問題合併，A 保留最完整回答
+3. q_text 以「Q序號：」開頭，a_text 以「A：」開頭
+""" + tag_section + """
+tags 規則：每題 2~3 個微觀標籤，第一個優先選：維修/保固/召回/操作/APP/帳號/物流/客服流程；後續描述症狀或型號；禁止使用模糊詞。
+
+輸出必須是合法 JSON，不加任何 markdown code block。
+
+對話紀錄：
+""" + conversation
+
+
+def _build_qa_text(data):
+    lines = []
+    for i, item in enumerate(data.get("qa_list", []), start=1):
+        q = item.get("q_text", "").strip()
+        a = item.get("a_text", "").strip()
+        if not re.match(r"^Q\d+[：:]", q):
+            q = "Q%d：%s" % (i, q)
+        if not re.match(r"^A[：:]", a):
+            a = "A：" + a
+        lines += [q, a, "", "---", ""]
+    msgs = data.get("general_messages", [])
+    if msgs:
+        lines += ["【一般訊息】"] + msgs
+    return "\n".join(lines)
+
+
+def _notify(group_id, text):
+    try:
+        if group_id:
+            line_bot_api.push_message(group_id, TextSendMessage(text=text))
+    except Exception as e:
+        print("通知失敗：", e, flush=True)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
