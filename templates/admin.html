@@ -643,13 +643,15 @@ function executeBatchOps(){
   fetch('/admin/api/tags/batch_ops',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(_batchOpsCache)})
   .then(r=>r.json()).then(function(d){
-    btn.disabled=false;btn.textContent='⚡ 確認執行';
-    if(!d.ok){msg.textContent='執行失敗';return;}
+    if(!d.ok){btn.disabled=false;btn.textContent='⚡ 確認執行';msg.textContent='執行失敗';return;}
     var results=d.results||[];
     var ok=results.filter(function(r){return r.action!=='error';}).length;
     var err=results.filter(function(r){return r.action==='error';}).length;
+    btn.disabled=true;
+    btn.style.background='#2e7d32';
+    btn.textContent='✅ 已執行完成，成功 '+ok+' 筆'+(err>0?'，失敗 '+err+' 筆':'');
     msg.style.color=err>0?'#c62828':'#2e7d32';
-    msg.textContent='完成！成功 '+ok+' 項'+(err>0?'，失敗 '+err+' 項':'');
+    msg.textContent='';
     loadGroups();
   }).catch(function(){
     btn.disabled=false;btn.textContent='⚡ 確認執行';
