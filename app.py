@@ -326,7 +326,10 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 /* ── 編輯模式 topbar 指示 ── */
 .edit-badge{font-size:10px;background:rgba(255,255,0,.25);color:#fff;padding:2px 8px;border-radius:99px;border:.5px solid rgba(255,255,255,.4)}
 /* ── Tag Popover ── */
-#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:12px;z-index:999;display:none;width:360px;max-width:90vw;max-height:260px;overflow-y:auto}
+#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:10px 12px 12px;z-index:999;display:none;width:360px;max-width:90vw}
+#popSearch{width:100%;border:1px solid #ddd;border-radius:7px;padding:5px 10px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:7px;outline:none}
+#popSearch:focus{border-color:#66bb6a}
+#popTagListWrap{max-height:220px;overflow-y:auto}
 #tagPopover .pop-title{font-size:10px;color:#aaa;margin-bottom:7px;letter-spacing:.5px}
 #tagPopover .pop-tags{display:flex;flex-wrap:wrap;gap:5px}
 #tagPopover .pop-tag{font-size:11px;padding:4px 10px;border-radius:99px;background:#f0fff0;color:#2e7d32;border:.5px solid #c8e6c9;cursor:pointer;transition:background .12s,transform .12s}
@@ -345,8 +348,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 </div>
 <!-- Tag Popover -->
 <div id="tagPopover">
-  <div id="popTabBar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;padding:5px 7px;border-radius:7px;background:#e8e8e8;border:.5px solid #ccc"></div>
-  <div class="pop-tags" id="popTagList"></div>
+  <input id="popSearch" type="text" placeholder="搜尋或新增標籤…" oninput="onPopSearch()" onclick="event.stopPropagation()">
+  <div id="popTagListWrap">
+    <div id="popTabBar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;padding:5px 7px;border-radius:7px;background:#e8e8e8;border:.5px solid #ccc"></div>
+    <div class="pop-tags" id="popTagList"></div>
+  </div>
 </div>
 <div class="yearbar">
   <span style="font-size:11px;color:rgba(255,255,255,.6);margin-right:2px;">歷史資料：</span>
@@ -609,18 +615,44 @@ function toggleEditMode(){
 /* ── Popover 控制 ── */
 function renderPopoverTabs(itemId){
   var existing=cardTags[itemId]||[];
+  var kw=(document.getElementById('popSearch')||{}).value||'';
+  kw=kw.trim().toLowerCase();
   var groups={};
   var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
   allTagsData.forEach(function(x){
     var t=x.tag||x.name||x; var g=x.group||'未分群';
     if(existing.indexOf(t)<0){if(!groups[g])groups[g]=[];groups[g].push(t);}
   });
+  var tabBar=document.getElementById('popTabBar');
+  var tagList=document.getElementById('popTagList');
+  if(kw){
+    // 搜尋模式：跨群組過濾，隱藏頁籤
+    tabBar.style.display='none';
+    var matched=[];
+    var exactMatch=false;
+    allTagsData.forEach(function(x){
+      var t=x.tag||x.name||x;
+      if(existing.indexOf(t)>=0)return;
+      if(t.toLowerCase().indexOf(kw)>=0){matched.push(t);}
+      if(t.toLowerCase()===kw)exactMatch=true;
+    });
+    var chips=matched.map(function(t){
+      return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+escAttr(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
+    }).join('');
+    if(!exactMatch){
+      var kwRaw=(document.getElementById('popSearch')||{}).value||'';
+      chips+='<div class="pop-tag" style="background:#e3f2fd;color:#1565c0;border-color:#90caf9;" data-id="'+itemId+'" data-tag="'+escAttr(kwRaw.trim())+'" onclick="createAndAddTag(this)">＋ 新增「'+esc(kwRaw.trim())+'」</div>';
+    }
+    tagList.innerHTML=chips||'<span style="font-size:11px;color:#aaa;">無符合標籤</span>';
+    return true;
+  }
+  // 正常模式：群組頁籤
+  tabBar.style.display='';
   var allGrps=[];
   order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
   Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
-  if(!allGrps.length)return false;
-  if(!popActiveGroup||allGrps.indexOf(popActiveGroup)<0)popActiveGroup=allGrps[0];
-  var tabBar=document.getElementById('popTabBar');
+  var hasAny=allGrps.length>0;
+  if(!popActiveGroup||allGrps.indexOf(popActiveGroup)<0)popActiveGroup=allGrps[0]||null;
   tabBar.innerHTML=allGrps.map(function(g){
     var isAct=g===popActiveGroup;
     var s=isAct?'background:#e8f5e9;color:#1b5e20;border:.5px solid #a5d6a7;font-weight:500':'color:#666;background:transparent;border:.5px solid transparent';
@@ -632,11 +664,24 @@ function renderPopoverTabs(itemId){
   var chips=(groups[popActiveGroup]||[]).map(function(t){
     return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+escAttr(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
   }).join('');
-  document.getElementById('popTagList').innerHTML=chips;
-  return true;
+  tagList.innerHTML=chips;
+  return hasAny||true;
+}
+function onPopSearch(){
+  if(popTargetId!=null)renderPopoverTabs(popTargetId);
+}
+function createAndAddTag(el){
+  var tag=(el.dataset.tag||'').trim();
+  if(!tag)return;
+  var itemId=parseInt(el.dataset.id);
+  addTag(itemId,tag);
+  // 新標籤加入 allTagsData 讓下次搜尋可見
+  var exists=allTagsData.some(function(x){return (x.tag||x.name||x)===tag;});
+  if(!exists)allTagsData.push({tag:tag,count:1,group:'未分群'});
 }
 function openPopover(itemId, btnEl){
   popTargetId=itemId;
+  var srch=document.getElementById('popSearch');if(srch)srch.value='';
   var pop=document.getElementById('tagPopover');
   if(!renderPopoverTabs(itemId)){
     pop.style.display='none';
@@ -806,7 +851,8 @@ function renderResults(d,kw){
     var qBody=(r.q_text||'').replace(/^Q\\d+[：:]\\s*/,'');
     html+='<div class="card" data-id="'+itemId+'">'
       +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div>'
-      +'<div class="q-txt">'+hilite(muteMetaInfo(qBody),kw)+'</div></div>'
+      +'<div class="q-txt">'+hilite(muteMetaInfo(qBody),kw)+'</div>'
+      +'<div style="font-size:10px;color:#ccc;flex-shrink:0;align-self:flex-start;padding-top:2px;">ID'+itemId+'</div></div>'
       +renderTagsHtml(itemId,tags)
       +'<div class="a-lbl">回答</div>'
       +'<div class="a-txt">'+hilite(muteMetaInfo(r.a_text||''),kw)+'</div>'
@@ -873,13 +919,19 @@ function openRenamePopup(btn){
   pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:5px">全域改名（所有 QA 同步）</div>'
     +'<input id="_renInp" data-old="'+esc(tag)+'" value="'+esc(tag)+'" />'
     +'<div class="rename-popup-row">'
-    +'<button class="ok" onclick="confirmRename()">確認</button>'
+    +'<button id="_renOkBtn" class="ok" onclick="confirmRename()">確認</button>'
     +'<button onclick="closeRenamePopup()">取消</button>'
     +'</div>';
   btn.closest('span').appendChild(pop);
   _renamePopupEl=pop;
   var inp=document.getElementById('_renInp');
-  if(inp){inp.focus();inp.select();}
+  if(inp){
+    inp.focus();inp.select();
+    inp.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){e.preventDefault();confirmRename();}
+      if(e.key==='Escape'){closeRenamePopup();}
+    });
+  }
   pop.addEventListener('click',function(e){e.stopPropagation();});
 }
 function closeRenamePopup(){
@@ -892,6 +944,8 @@ function confirmRename(forceMerge){
   var newName=inp.value.trim();
   if(!newName){alert('新名稱不可空白');return;}
   if(newName===oldName){closeRenamePopup();return;}
+  var okBtn=document.getElementById('_renOkBtn');
+  if(okBtn){okBtn.disabled=true;okBtn.textContent='存檔中...';}
   fetch('/qa/api/rename_tag',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({old_name:oldName,new_name:newName,force_merge:!!forceMerge})})
   .then(function(r){return r.json();}).then(function(d){
@@ -922,8 +976,8 @@ function confirmRename(forceMerge){
         cardTags[id]=cardTags[id].map(function(t){return t===oldName?newName:t;});
       });
       if(affected>0){loadSidebarTags();loadHomeTags();}
-    }else{alert('改名失敗：'+(d.error||'未知錯誤'));}
-  }).catch(function(){alert('網路錯誤');});
+    }else{var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}alert('改名失敗：'+(d.error||'未知錯誤'));}
+  }).catch(function(){var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}alert('網路錯誤，請稍後再試');});
 }
 document.addEventListener('click',function(){closeRenamePopup();});
 </script></body></html>'''
@@ -1356,7 +1410,7 @@ tr:hover td{background:#fafafa}
       <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
       <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
       <span id="ghostStats" style="font-size:11px;color:#888;"></span>
-      <button onclick="exportTagsCSV()" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button><button onclick="createGroup()">＋ 新增群組</button>
+      <button onclick="exportTagsCSV(this)" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button><button onclick="createGroup()">＋ 新增群組</button>
     </div>
     <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
     <div id="dragBoard" style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
@@ -1528,15 +1582,54 @@ function deleteTagChip(btn){
   .then(function(r){return r.json();})
   .then(function(d){
     if(d.ok){
-      showDragLog('標籤「'+tag+'」已刪除');
+      showDragLog('標籤「'+tag+'」已刪除'+(d.removed_from?' (已從 '+d.removed_from+' 筆 QA 移除)':''));
       loadGroups();
     } else if(d.in_use_count){
-      alert('無法刪除「'+tag+'」\\n此標籤目前被 '+d.in_use_count+' 筆 QA 使用中。\\n請先在查詢介面移除相關 QA 的標籤，再進行刪除。');
+      showDeleteConfirmModal(tag, d.in_use_count, d.qa_items||[]);
     } else {
       alert('刪除失敗：'+(d.error||'未知錯誤'));
     }
   })
   .catch(function(){alert('連線失敗，請稍後再試');});
+}
+function showDeleteConfirmModal(tag, count, items){
+  var existing=document.getElementById('_delConfirmModal');
+  if(existing)existing.remove();
+  var rows=items.map(function(item){
+    var q=(item.q_text||'').substring(0,120);
+    var a=(item.a_text||'').substring(0,80);
+    return '<div style="border:.5px solid #eee;border-radius:6px;padding:8px 10px;margin-bottom:6px;background:#fff;">'
+      +'<div style="font-size:10px;color:#aaa;margin-bottom:3px;">ID: '+item.id+'</div>'
+      +'<div style="font-size:11px;color:#333;line-height:1.5;margin-bottom:3px;"><b>Q：</b>'+escHtmlG(q)+(item.q_text&&item.q_text.length>120?'…':'')+'</div>'
+      +'<div style="font-size:11px;color:#555;line-height:1.5;"><b>A：</b>'+escHtmlG(a)+(item.a_text&&item.a_text.length>80?'…':'')+'</div>'
+      +'</div>';
+  }).join('');
+  var more=count>items.length?'<div style="font-size:11px;color:#aaa;text-align:center;margin-top:4px;">…共 '+count+' 筆，僅顯示前 '+items.length+' 筆</div>':'';
+  var modal=document.createElement('div');
+  modal.id='_delConfirmModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML='<div style="background:#fff;border-radius:10px;padding:20px;width:500px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);">'
+    +'<div style="font-size:14px;font-weight:500;margin-bottom:6px;color:#c62828;">⚠ 確認刪除標籤「'+escHtmlG(tag)+'」</div>'
+    +'<div style="font-size:12px;color:#666;margin-bottom:10px;">此標籤被 <b>'+count+'</b> 筆 QA 使用中，以下為相關 QA 原文：</div>'
+    +'<div style="overflow-y:auto;flex:1;margin-bottom:14px;padding-right:2px;">'+rows+more+'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    +'<button onclick="document.getElementById(\'_delConfirmModal\').remove()" style="padding:6px 16px;border-radius:6px;border:.5px solid #ddd;background:#fff;cursor:pointer;font-size:12px;">取消</button>'
+    +'<button onclick="forceDeleteTag(\''+escAttrG(tag)+'\')" style="padding:6px 16px;border-radius:6px;border:none;background:#c62828;color:#fff;cursor:pointer;font-size:12px;font-weight:500;">強制刪除（從所有 QA 移除）</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+}
+function forceDeleteTag(tag){
+  var modal=document.getElementById('_delConfirmModal');
+  if(modal)modal.remove();
+  fetch('/admin/api/tags/delete_chip',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tag_name:tag,force:true})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){showDragLog('標籤「'+tag+'」已強制刪除，從 '+d.removed_from+' 筆 QA 移除');loadGroups();}
+    else{alert('刪除失敗：'+(d.error||'未知'));}
+  });
 }
 function confirmAdminRename(forceMerge){
   var inp=document.getElementById('_admRenInp');
@@ -1591,8 +1684,7 @@ function cleanupGhostTags(){
   }).catch(function(){if(btn){btn.textContent='🧹 清除幽靈標籤';btn.disabled=false;}alert('網路錯誤');});
 }
 
-function exportTagsCSV(){
-  var btn=event.target;
+function exportTagsCSV(btn){
   btn.disabled=true;btn.textContent='載入中...';
   fetch('/admin/api/tags/export_csv').then(r=>r.json()).then(function(d){
     btn.disabled=false;btn.textContent='📥 匯出標籤';
@@ -2323,19 +2415,28 @@ def update_tag_group():
 @app.route('/admin/api/tags/delete_chip', methods=['POST'])
 @require_admin
 def admin_delete_tag_chip():
-    """從 tag_groups 刪除標籤，若 qa_items 仍有使用則拒絕"""
     data = request.get_json()
     tag_name = (data or {}).get('tag_name', '').strip()
+    force = bool((data or {}).get('force', False))
     if not tag_name:
         return jsonify({'error': '缺少 tag_name'}), 400
     try:
-        res = supabase.table('qa_items').select('id', count='exact') \
-            .contains('tags', [tag_name]).execute()
-        in_use = res.count if res.count else 0
-        if in_use > 0:
-            return jsonify({'error': f'標籤被 {in_use} 筆 QA 使用', 'in_use_count': in_use})
+        res = supabase.table('qa_items').select('id').contains('tags', [tag_name]).execute()
+        in_use_rows = res.data or []
+        in_use = len(in_use_rows)
+        if in_use > 0 and not force:
+            ids = [r['id'] for r in in_use_rows[:10]]
+            details = supabase.table('qa_items').select('id,q_text,a_text').in_('id', ids).execute().data or []
+            return jsonify({'error': f'標籤被 {in_use} 筆 QA 使用', 'in_use_count': in_use, 'qa_items': details})
+        if in_use > 0 and force:
+            # 從每筆 qa_items 移除此標籤
+            for row in in_use_rows:
+                item = supabase.table('qa_items').select('id,tags').eq('id', row['id']).single().execute().data
+                if item:
+                    new_tags = [t for t in (item.get('tags') or []) if t != tag_name]
+                    supabase.table('qa_items').update({'tags': new_tags}).eq('id', row['id']).execute()
         supabase.table('tag_groups').delete().eq('tag_name', tag_name).execute()
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'removed_from': in_use})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
