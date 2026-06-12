@@ -202,53 +202,71 @@ tr:hover td{background:#fafafa}
 
 <!-- 群組管理 -->
 <div class="panel" id="tab-groupmgr">
-  <div class="card">
-    <div class="card-title">🗂️ 標籤群組管理</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
-      <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
-      <span id="ghostStats" style="font-size:11px;color:#888;"></span>
-      <button onclick="exportTagsCSV(this)" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button>
-      <button onclick="toggleBatchImport()" id="batchImportToggleBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #6a1b9a;color:#6a1b9a;background:transparent;cursor:pointer;">📤 批次更新</button>
-      <button onclick="createGroup()">＋ 新增群組</button>
-    </div>
-    <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
-    <div id="dragBoard" style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
+  <!-- 子頁籤列 -->
+  <div style="display:flex;gap:0;border-bottom:1px solid #e0e0e0;margin-bottom:14px;background:#fff;padding:0 18px;">
+    <div id="gmTab-groups" onclick="switchGmTab('groups')" style="padding:8px 16px;font-size:12px;cursor:pointer;color:#00b900;border-bottom:2px solid #00b900;font-weight:500;white-space:nowrap;">🗂️ 標籤群組</div>
+    <div id="gmTab-history" onclick="switchGmTab('history')" style="padding:8px 16px;font-size:12px;cursor:pointer;color:#777;border-bottom:2px solid transparent;white-space:nowrap;">📋 批次更新記錄</div>
   </div>
+  <!-- 標籤群組面板 -->
+  <div id="gmPane-groups">
+    <div class="card">
+      <div class="card-title">🗂️ 標籤群組管理</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
+        <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
+        <span id="ghostStats" style="font-size:11px;color:#888;"></span>
+        <button onclick="exportTagsCSV(this)" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button>
+        <button onclick="toggleBatchImport()" id="batchImportToggleBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #6a1b9a;color:#6a1b9a;background:transparent;cursor:pointer;">📤 批次更新</button>
+        <button onclick="createGroup()">＋ 新增群組</button>
+      </div>
+      <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
+      <div id="dragBoard" style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
+    </div>
 
-  <!-- 批次更新標籤區塊 -->
-  <div id="batchImportPanel" class="card" style="display:none;margin-top:12px;">
-    <div class="card-title">📤 批次更新標籤／群組</div>
-    <div style="font-size:12px;color:#666;margin-bottom:10px;line-height:1.7;">
-      步驟：<strong>①</strong> 點「📥 匯出標籤」下載 CSV　<strong>②</strong> 在 Excel 填入操作欄　<strong>③</strong> 存成 CSV 上傳
-      <br>欄位說明：<code>群組</code> <code>標籤</code> <code>QA數量</code> <code>標籤更名</code>（填新名）<code>刪除(Y)</code>（填 Y）<code>群組更名</code>（填新群組名）
-    </div>
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
-      <input type="file" id="batchCsvFile" accept=".csv" style="font-size:12px;flex:1;">
-      <button onclick="parseBatchCSV()" style="padding:5px 14px;font-size:12px;border-radius:6px;background:#6a1b9a;color:#fff;border:none;cursor:pointer;">解析預覽</button>
-    </div>
-    <div id="batchPreviewArea" style="display:none;">
-      <div style="font-size:12px;font-weight:500;margin-bottom:6px;">預覽操作清單（僅顯示有變更的列）：</div>
-      <div style="overflow-x:auto;margin-bottom:10px;">
-        <table id="batchPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:#f5f5f5;">
-            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">現有群組</th>
-            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">現有標籤</th>
-            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">QA數</th>
-            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">操作</th>
-          </tr></thead>
-          <tbody id="batchPreviewBody"></tbody>
-        </table>
+    <!-- 批次更新標籤區塊 -->
+    <div id="batchImportPanel" class="card" style="display:none;margin-top:12px;">
+      <div class="card-title">📤 批次更新標籤／群組</div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px;line-height:1.7;">
+        步驟：<strong>①</strong> 點「📥 匯出標籤」下載 CSV　<strong>②</strong> 在 Excel 填入操作欄　<strong>③</strong> 存成 CSV 上傳
+        <br>欄位說明：<code>群組</code> <code>標籤</code> <code>QA數量</code> <code>標籤更名</code>（填新名）<code>刪除(Y)</code>（填 Y）<code>群組更名</code>（填新群組名）
       </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <button onclick="executeBatchOps()" id="batchExecBtn" style="padding:6px 18px;font-size:13px;border-radius:6px;background:#c62828;color:#fff;border:none;cursor:pointer;font-weight:500;">⚡ 確認執行</button>
-        <button onclick="document.getElementById('batchPreviewArea').style.display='none'" style="padding:6px 14px;font-size:12px;border-radius:6px;border:.5px solid #aaa;background:transparent;cursor:pointer;">取消</button>
-        <span id="batchExecMsg" style="font-size:12px;color:#888;"></span>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+        <input type="file" id="batchCsvFile" accept=".csv" style="font-size:12px;flex:1;">
+        <button onclick="parseBatchCSV()" style="padding:5px 14px;font-size:12px;border-radius:6px;background:#6a1b9a;color:#fff;border:none;cursor:pointer;">解析預覽</button>
       </div>
+      <div id="batchPreviewArea" style="display:none;">
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px;">預覽操作清單（僅顯示有變更的列）：</div>
+        <div style="overflow-x:auto;margin-bottom:10px;">
+          <table id="batchPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="background:#f5f5f5;">
+              <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">現有群組</th>
+              <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">現有標籤</th>
+              <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">QA數</th>
+              <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">操作</th>
+            </tr></thead>
+            <tbody id="batchPreviewBody"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button onclick="executeBatchOps()" id="batchExecBtn" style="padding:6px 18px;font-size:13px;border-radius:6px;background:#c62828;color:#fff;border:none;cursor:pointer;font-weight:500;">⚡ 確認執行</button>
+          <button onclick="document.getElementById('batchPreviewArea').style.display='none'" style="padding:6px 14px;font-size:12px;border-radius:6px;border:.5px solid #aaa;background:transparent;cursor:pointer;">取消</button>
+          <span id="batchExecMsg" style="font-size:12px;color:#888;"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 執行記錄面板 -->
+  <div id="gmPane-history" style="display:none;">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">📋 批次更新記錄
+        <button onclick="loadBatchHistory()" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #ddd;background:transparent;cursor:pointer;margin-left:auto;">🔄 重新整理</button>
+      </div>
+      <div id="batchHistoryList"><div style="color:#aaa;font-size:13px;">載入中...</div></div>
     </div>
   </div>
 </div>
 <script>
+
 var allGroups=[];
 var allGroupsData={};
 var dragState={};
@@ -638,25 +656,69 @@ function executeBatchOps(){
   if(!confirm('確定要執行？此操作會直接更新所有 QA 標籤，無法還原。')){return;}
   var btn=document.getElementById('batchExecBtn');
   var msg=document.getElementById('batchExecMsg');
-  btn.disabled=true;btn.textContent='執行中...';
+  btn.disabled=true;btn.textContent='⏳ 送出中...';
   msg.textContent='';
   fetch('/admin/api/tags/batch_ops',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(_batchOpsCache)})
-  .then(r=>r.json()).then(function(d){
-    if(!d.ok){btn.disabled=false;btn.textContent='⚡ 確認執行';msg.textContent='執行失敗';return;}
-    var results=d.results||[];
-    var ok=results.filter(function(r){return r.action!=='error';}).length;
-    var err=results.filter(function(r){return r.action==='error';}).length;
-    btn.disabled=true;
-    btn.style.background='#2e7d32';
-    btn.textContent='✅ 已執行完成，成功 '+ok+' 筆'+(err>0?'，失敗 '+err+' 筆':'');
-    msg.style.color=err>0?'#c62828':'#2e7d32';
-    msg.textContent='';
-    loadGroups();
+  .then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){btn.disabled=false;btn.textContent='⚡ 確認執行';msg.textContent='送出失敗';return;}
+    btn.style.background='#1565c0';
+    btn.textContent='✅ 已送出，背景執行中';
+    msg.style.color='#1565c0';
+    msg.textContent='可至「批次更新記錄」查看進度';
+    setTimeout(function(){switchGmTab('history');},1200);
   }).catch(function(){
     btn.disabled=false;btn.textContent='⚡ 確認執行';
     msg.style.color='#c62828';msg.textContent='網路錯誤';
   });
+}
+function switchGmTab(name){
+  var tabs=['groups','history'];
+  tabs.forEach(function(t){
+    var tabEl=document.getElementById('gmTab-'+t);
+    var paneEl=document.getElementById('gmPane-'+t);
+    if(tabEl){
+      tabEl.style.color=(t===name)?'#00b900':'#777';
+      tabEl.style.borderBottom=(t===name)?'2px solid #00b900':'2px solid transparent';
+      tabEl.style.fontWeight=(t===name)?'500':'normal';
+    }
+    if(paneEl) paneEl.style.display=(t===name)?'block':'none';
+  });
+  if(name==='history') loadBatchHistory();
+}
+function loadBatchHistory(){
+  var area=document.getElementById('batchHistoryList');
+  if(!area)return;
+  area.innerHTML='<div style="color:#aaa;font-size:13px;">載入中...</div>';
+  fetch('/admin/api/tags/batch_ops_history').then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){area.textContent='載入失敗';return;}
+    var list=d.history||[];
+    if(!list.length){area.innerHTML='<div style="color:#aaa;font-size:13px;padding:8px 0;">尚無執行記錄</div>';return;}
+    var html='';
+    list.forEach(function(entry){
+      var st=entry.status;
+      var icon=st==='running'?'⏳':st==='done'?'✅':st==='partial'?'⚠️':'❌';
+      var color=st==='running'?'#1565c0':st==='done'?'#2e7d32':st==='partial'?'#e65100':'#c62828';
+      var bg=st==='running'?'#e3f2fd':st==='done'?'#f1f8e9':st==='partial'?'#fff8e1':'#ffebee';
+      var label=st==='running'?'執行中':st==='done'?'完成':st==='partial'?'部分失敗':'失敗';
+      var title='';
+      if(st==='running'){title=icon+' 處理中...';}
+      else if(st==='done'){title=icon+' 已執行完成，成功 '+entry.success+' 筆';}
+      else if(st==='partial'){title=icon+' 執行完成，成功 '+entry.success+' 筆，失敗 '+entry.fail+' 筆';}
+      else{title=icon+' 執行失敗';}
+      var sub=entry.started_at||'';
+      if(entry.completed_at) sub+=' → '+entry.completed_at;
+      if(entry.total) sub+='　共 '+entry.total+' 筆操作';
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;background:'+bg+';margin-bottom:8px;border:.5px solid #e0e0e0;">'
+        +'<div style="flex:1;">'
+        +'<div style="font-size:13px;font-weight:500;color:#333;">'+title+'</div>'
+        +'<div style="font-size:11px;color:#888;margin-top:3px;">'+esc(sub)+'</div>'
+        +'</div>'
+        +'<div style="font-size:11px;padding:3px 10px;border-radius:20px;background:'+color+';color:#fff;flex-shrink:0;">'+label+'</div>'
+        +'</div>';
+    });
+    area.innerHTML=html;
+  }).catch(function(){area.textContent='連線失敗';});
 }
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
