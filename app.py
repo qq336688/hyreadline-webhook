@@ -881,7 +881,7 @@ def _run_batch_ops_bg(tag_ops, group_ops, job_id):
         results.append({'action':'error','error':str(e)})
         status = 'error'
 
-    completed_at = datetime.now().strftime('%Y/%m/%d %H:%M')
+    completed_at = (datetime.now() + timedelta(hours=8)).strftime('%Y/%m/%d %H:%M')
     history = _load_batch_history()
     for entry in history:
         if entry.get('job_id') == job_id:
@@ -901,7 +901,7 @@ def admin_batch_tag_ops():
     group_ops = body.get('group_ops', [])
     total = len(tag_ops) + len(group_ops)
     job_id = datetime.now().strftime('%Y%m%d%H%M%S')
-    started_at = datetime.now().strftime('%Y/%m/%d %H:%M')
+    started_at = (datetime.now() + timedelta(hours=8)).strftime('%Y/%m/%d %H:%M')
     history = _load_batch_history()
     history.insert(0, {
         'job_id': job_id,
