@@ -208,10 +208,44 @@ tr:hover td{background:#fafafa}
       <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
       <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
       <span id="ghostStats" style="font-size:11px;color:#888;"></span>
-      <button onclick="exportTagsCSV(this)" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button><button onclick="createGroup()">＋ 新增群組</button>
+      <button onclick="exportTagsCSV(this)" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button>
+      <button onclick="toggleBatchImport()" id="batchImportToggleBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #6a1b9a;color:#6a1b9a;background:transparent;cursor:pointer;">📤 批次更新</button>
+      <button onclick="createGroup()">＋ 新增群組</button>
     </div>
     <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
     <div id="dragBoard" style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
+  </div>
+
+  <!-- 批次更新標籤區塊 -->
+  <div id="batchImportPanel" class="card" style="display:none;margin-top:12px;">
+    <div class="card-title">📤 批次更新標籤／群組</div>
+    <div style="font-size:12px;color:#666;margin-bottom:10px;line-height:1.7;">
+      步驟：<strong>①</strong> 點「📥 匯出標籤」下載 CSV　<strong>②</strong> 在 Excel 填入操作欄　<strong>③</strong> 存成 CSV 上傳
+      <br>欄位說明：<code>群組</code> <code>標籤</code> <code>QA數量</code> <code>標籤更名</code>（填新名）<code>刪除(Y)</code>（填 Y）<code>群組更名</code>（填新群組名）
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+      <input type="file" id="batchCsvFile" accept=".csv" style="font-size:12px;flex:1;">
+      <button onclick="parseBatchCSV()" style="padding:5px 14px;font-size:12px;border-radius:6px;background:#6a1b9a;color:#fff;border:none;cursor:pointer;">解析預覽</button>
+    </div>
+    <div id="batchPreviewArea" style="display:none;">
+      <div style="font-size:12px;font-weight:500;margin-bottom:6px;">預覽操作清單（僅顯示有變更的列）：</div>
+      <div style="overflow-x:auto;margin-bottom:10px;">
+        <table id="batchPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f5f5f5;">
+            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">現有群組</th>
+            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">現有標籤</th>
+            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">QA數</th>
+            <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;">操作</th>
+          </tr></thead>
+          <tbody id="batchPreviewBody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button onclick="executeBatchOps()" id="batchExecBtn" style="padding:6px 18px;font-size:13px;border-radius:6px;background:#c62828;color:#fff;border:none;cursor:pointer;font-weight:500;">⚡ 確認執行</button>
+        <button onclick="document.getElementById('batchPreviewArea').style.display='none'" style="padding:6px 14px;font-size:12px;border-radius:6px;border:.5px solid #aaa;background:transparent;cursor:pointer;">取消</button>
+        <span id="batchExecMsg" style="font-size:12px;color:#888;"></span>
+      </div>
+    </div>
   </div>
 </div>
 <script>
@@ -488,9 +522,9 @@ function exportTagsCSV(btn){
     btn.disabled=false;btn.textContent='📥 匯出標籤';
     if(d.error){alert('錯誤：'+d.error);return;}
     var rows=d.rows||[];
-    var csv='\uFEFF群組,標籤,QA數量\n';
+    var csv='\uFEFF群組,標籤,QA數量,標籤更名,刪除(Y),群組更名\n';
     rows.forEach(function(r){
-      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+'\n';
+      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+',,,\n';
     });
     var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     var url=URL.createObjectURL(blob);
@@ -500,6 +534,127 @@ function exportTagsCSV(btn){
     a.download='HyRead_標籤盤點_'+today.getFullYear()+mm+dd+'.csv';
     a.click();URL.revokeObjectURL(url);
   }).catch(function(){btn.disabled=false;btn.textContent='📥 匯出標籤';alert('匯出失敗');});
+}
+
+function toggleBatchImport(){
+  var p=document.getElementById('batchImportPanel');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+
+var _batchOpsCache=[];
+function parseBatchCSV(){
+  var file=document.getElementById('batchCsvFile').files[0];
+  if(!file){alert('請先選擇 CSV 檔案');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var text=e.target.result.replace(/\r/g,'');
+    var lines=text.split('\n').filter(function(l){return l.trim();});
+    if(lines.length<2){alert('CSV 格式錯誤，至少需要標題列+一筆資料');return;}
+    // 解析 CSV（支援引號包覆）
+    function parseCSVLine(line){
+      var result=[],cur='',inQ=false;
+      for(var i=0;i<line.length;i++){
+        var c=line[i];
+        if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+        else if(c===','&&!inQ){result.push(cur.trim());cur='';}
+        else{cur+=c;}
+      }
+      result.push(cur.trim());
+      return result;
+    }
+    var header=parseCSVLine(lines[0]).map(function(h){return h.replace(/\uFEFF/g,'').trim();});
+    // 容錯欄位對應
+    function col(h,candidates){
+      for(var i=0;i<candidates.length;i++){var idx=h.indexOf(candidates[i]);if(idx>=0)return idx;}
+      return -1;
+    }
+    var iGrp=col(header,['群組']);
+    var iTag=col(header,['標籤']);
+    var iCnt=col(header,['QA數量','QA數']);
+    var iRen=col(header,['標籤更名','更名後']);
+    var iDel=col(header,['刪除']);
+    var iGRen=col(header,['群組更名']);
+    if(iTag<0){alert('找不到「標籤」欄位，請確認 CSV 格式');return;}
+
+    var tagOps=[],groupOps=[],seenGrpRename={};
+    var previewRows=[];
+
+    for(var i=1;i<lines.length;i++){
+      var cols=parseCSVLine(lines[i]);
+      var tag=(iTag>=0&&cols[iTag])||'';
+      var grp=(iGrp>=0&&cols[iGrp])||'';
+      var cnt=(iCnt>=0&&cols[iCnt])||'';
+      var ren=(iRen>=0&&cols[iRen])||'';
+      var del=(iDel>=0&&cols[iDel])||'';
+      vargren=(iGRen>=0&&cols[iGRen])||'';
+      if(!tag) continue;
+
+      // 群組更名（每個群組只處理一次）
+      if(grp&&gren&&grp!==gren&&!seenGrpRename[grp]){
+        seenGrpRename[grp]=true;
+        groupOps.push({group:grp,rename_to:gren});
+        previewRows.push({grp:grp,tag:'（整個群組）',cnt:'',op:'群組改名 → '+gren,color:'#e8eaf6'});
+      }
+
+      var hasOp=ren||del.toUpperCase()==='Y';
+      if(!hasOp) continue;
+
+      if(del.toUpperCase()==='Y'){
+        tagOps.push({tag:tag,delete:true});
+        previewRows.push({grp:grp,tag:tag,cnt:cnt,op:'🗑 刪除',color:'#ffebee'});
+      } else if(ren){
+        tagOps.push({tag:tag,rename_to:ren,delete:false});
+        previewRows.push({grp:grp,tag:tag,cnt:cnt,op:'✏️ 改名/合併 → '+ren,color:'#e8f5e9'});
+      }
+    }
+
+    _batchOpsCache={tag_ops:tagOps,group_ops:groupOps};
+    // 渲染預覽
+    var tbody=document.getElementById('batchPreviewBody');
+    tbody.innerHTML='';
+    if(previewRows.length===0){
+      tbody.innerHTML='<tr><td colspan="4" style="padding:10px;color:#888;text-align:center;">沒有偵測到任何需要執行的操作（標籤更名和刪除欄位皆空白）</td></tr>';
+    } else {
+      previewRows.forEach(function(r){
+        var tr=document.createElement('tr');
+        tr.style.background=r.color||'';
+        tr.innerHTML='<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+r.grp+'</td>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+r.tag+'</td>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+r.cnt+'</td>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:500;">'+r.op+'</td>';
+        tbody.appendChild(tr);
+      });
+    }
+    document.getElementById('batchPreviewArea').style.display='block';
+    document.getElementById('batchExecMsg').textContent='共 '+tagOps.length+' 個標籤操作、'+groupOps.length+' 個群組改名';
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+function executeBatchOps(){
+  if(!_batchOpsCache||(!(_batchOpsCache.tag_ops||[]).length&&!(_batchOpsCache.group_ops||[]).length)){
+    alert('沒有可執行的操作');return;
+  }
+  if(!confirm('確定要執行？此操作會直接更新所有 QA 標籤，無法還原。')){return;}
+  var btn=document.getElementById('batchExecBtn');
+  var msg=document.getElementById('batchExecMsg');
+  btn.disabled=true;btn.textContent='執行中...';
+  msg.textContent='';
+  fetch('/admin/api/tags/batch_ops',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(_batchOpsCache)})
+  .then(r=>r.json()).then(function(d){
+    btn.disabled=false;btn.textContent='⚡ 確認執行';
+    if(!d.ok){msg.textContent='執行失敗';return;}
+    var results=d.results||[];
+    var ok=results.filter(function(r){return r.action!=='error';}).length;
+    var err=results.filter(function(r){return r.action==='error';}).length;
+    msg.style.color=err>0?'#c62828':'#2e7d32';
+    msg.textContent='完成！成功 '+ok+' 項'+(err>0?'，失敗 '+err+' 項':'');
+    loadGroups();
+  }).catch(function(){
+    btn.disabled=false;btn.textContent='⚡ 確認執行';
+    msg.style.color='#c62828';msg.textContent='網路錯誤';
+  });
 }
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
