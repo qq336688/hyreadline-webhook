@@ -12,6 +12,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "hyread-admin-2026-secret")
+from datetime import timedelta
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
 supabase = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
@@ -38,6 +40,7 @@ def admin_login():
         result = supabase.table("admin_users").select("*")\
             .eq("username", username).eq("is_active", True).execute()
         if result.data and check_password_hash(result.data[0]["password_hash"], password) and result.data[0].get("can_admin", True):
+            session.permanent = True
             session["admin_logged_in"] = True
             session["admin_username"] = username
             return redirect("/admin")
@@ -104,6 +107,7 @@ def qa_login():
         result = supabase.table("admin_users").select("*")\
             .eq("username", username).eq("is_active", True).execute()
         if result.data and check_password_hash(result.data[0]["password_hash"], password) and result.data[0].get("can_query", True):
+            session.permanent = True
             session["qa_logged_in"] = True
             session["qa_username"] = username
             return redirect("/qa")
@@ -877,7 +881,7 @@ function renderResults(d,kw){
 function updateTagsOnServer(itemId, tags, onSuccess){
   fetch('/qa/api/update_tags',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({id:itemId,tags:tags})})
-  .then(function(r){return r.json()}).then(function(d){
+  .then(function(r){if(r.status===302||r.redirected||(!r.ok&&r.status!==400&&r.status!==500)){throw new Error('session');}return r.json()}).then(function(d){
     if(d.ok){
       cardTags[itemId]=d.tags;
       /* 重新渲染該卡片的 tags 區塊 */
@@ -887,7 +891,7 @@ function updateTagsOnServer(itemId, tags, onSuccess){
     }else{
       alert('更新失敗：'+d.error);
     }
-  }).catch(function(){alert('網路錯誤，請稍後再試');});
+  }).catch(function(e){if(e&&e.message==='session'){alert('登入已過期，請重新整理頁面並重新登入。');window.location='/qa/login';}else{alert('網路錯誤，請稍後再試');}});
 }
 
 function removeTag(itemId, tag){
@@ -948,7 +952,7 @@ function confirmRename(forceMerge){
   if(okBtn){okBtn.disabled=true;okBtn.textContent='存檔中...';}
   fetch('/qa/api/rename_tag',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({old_name:oldName,new_name:newName,force_merge:!!forceMerge})})
-  .then(function(r){return r.json();}).then(function(d){
+  .then(function(r){if(r.status===302||r.redirected||!r.ok&&r.status!==400&&r.status!==500){throw new Error('session');}return r.json();}).then(function(d){
     if(d.conflict){
       var pop=_renamePopupEl;
       if(pop){
@@ -977,7 +981,7 @@ function confirmRename(forceMerge){
       });
       if(affected>0){loadSidebarTags();loadHomeTags();}
     }else{var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}alert('改名失敗：'+(d.error||'未知錯誤'));}
-  }).catch(function(){var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}alert('網路錯誤，請稍後再試');});
+  }).catch(function(e){var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}if(e&&e.message==='session'){alert('登入已過期，請重新整理頁面並重新登入。');window.location='/qa/login';}else{alert('網路錯誤，請稍後再試');}});
 }
 document.addEventListener('click',function(){closeRenamePopup();});
 </script></body></html>'''
