@@ -1308,7 +1308,7 @@ def should_skip(msg, db_phrases, db_senders, db_keywords):
 # LINE Webhook
 # ──────────────────────────────────────────────
 
-@app.route("/callback", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
