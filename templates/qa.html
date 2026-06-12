@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HyRead Q&A 查詢</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;height:100vh;display:flex;flex-direction:column;background:#f5f7fa}
+.topbar{background:#00b900;color:#fff;padding:11px 18px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;flex-shrink:0}
+.topbar a{color:rgba(255,255,255,.85);font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid rgba(255,255,255,.3);text-decoration:none;margin-left:auto}
+.wrap{display:flex;flex:1;overflow:hidden}
+aside{width:260px;background:#fff;border-right:.5px solid #e0e0e0;padding:10px 8px;display:flex;flex-direction:column;gap:3px;flex-shrink:0;overflow-y:auto}
+.yearbar{background:#1a8c2e;padding:7px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.yr-bar-btn{padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:.5px solid rgba(255,255,255,.35);color:rgba(255,255,255,.9);background:rgba(255,255,255,.12)}
+.yr-bar-btn:hover{background:rgba(255,255,255,.25)}
+.yr-bar-btn.active{background:rgba(255,255,255,.9);color:#1a6b35;font-weight:500;border-color:transparent}
+.tag-group-hdr{font-size:10px;font-weight:600;color:#555;padding:6px 2px 3px;letter-spacing:.4px;display:flex;align-items:center;gap:5px;cursor:pointer}
+.tag-group-hdr .grp-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.tag-group-hdr .grp-count{font-size:9px;color:#aaa;margin-left:auto}
+.sb-lbl{font-size:10px;color:#aaa;padding:7px 5px 3px;letter-spacing:.5px}
+.yr-link{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:.5px solid transparent;color:#666;text-align:left}
+.yr-link.active{background:#e8f5e9;border:.5px solid #00b900;color:#1b5e20;font-weight:500}
+.yr-link:hover:not(.active){background:#f5f5f5}
+.yr-checks{display:flex;flex-wrap:wrap;gap:4px 10px;padding:5px 2px 0;font-size:11px;color:#555}
+.yr-checks label{display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap}
+.yr-checks input[type=checkbox]{accent-color:#00b900;width:13px;height:13px;cursor:pointer}
+.divider{height:.5px;background:#eee;margin:5px 0}
+.tag-filter-chip{display:inline-block;padding:3px 10px;border:.5px solid #ddd;border-radius:99px;font-size:11px;color:#666;cursor:pointer;background:#fff;margin:2px;transition:background .12s,border-color .12s}
+.tag-filter-chip:hover{border-color:#00b900;color:#1b5e20}
+.tag-filter-chip.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
+.tag-clear-btn{font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;margin-top:4px;display:none;width:100%}
+.side-tab-bar{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:8px;padding:7px 10px;border-radius:8px;background:#e0e0e0;border:.5px solid #ccc}
+.side-tab-btn{padding:3px 8px;border-radius:6px;font-size:10px;cursor:pointer;border:.5px solid transparent;color:#888;background:transparent;white-space:nowrap;font-family:inherit}
+.side-tab-btn:hover{background:#f0f0f0;color:#333}
+.side-tab-btn.active{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;font-weight:500}
+.home-tab-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;background:#e0e0e0;border-radius:8px;padding:7px 10px;border:.5px solid #ccc}
+.home-tab-btn{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:.5px solid #ddd;color:#666;background:#fff;white-space:nowrap;font-family:inherit}
+.home-tab-btn:hover{border-color:#00b900;color:#1b5e20}
+.home-tab-btn.active{background:#e8f5e9;border-color:#00b900;color:#1b5e20;font-weight:500}
+.home-tab-cnt{font-size:10px;padding:1px 5px;border-radius:8px;background:rgba(0,0,0,.06);margin-left:3px}
+.home-tab-btn.active .home-tab-cnt{background:rgba(27,94,32,.15);color:#1b5e20}
+.tag-clear-btn.visible{display:block}
+main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.search-bar{padding:12px 16px;border-bottom:.5px solid #e0e0e0;background:#fff}
+.search-row{display:flex;gap:8px}
+.kw-input{flex:1;padding:9px 14px;border:1.5px solid #00b900;border-radius:20px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.search-btn{width:38px;height:38px;background:#00b900;border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+.clear-btn{width:38px;height:38px;background:#e0e0e0;border:none;border-radius:50%;cursor:pointer;color:#666;font-size:16px;display:flex;align-items:center;justify-content:center}
+.clear-btn:hover{background:#bdbdbd}
+.meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:#aaa}
+.meta-badge{background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:99px;font-weight:500}
+.sel-tag-bar{display:none;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 12px;background:#f0fff0;border:.5px solid #c8e6c9;border-radius:8px;margin-bottom:8px}
+.sel-tag-bar.has-tags{display:flex}
+.sel-tag-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 10px;background:#e8f5e9;border:.5px solid #a5d6a7;border-radius:99px;font-size:11px;color:#1b5e20}
+.sel-tag-pill span{cursor:pointer;font-size:13px;line-height:1;color:#666;margin-left:2px}
+.sel-tag-pill span:hover{color:#e53935}
+.sel-clear-all{font-size:11px;color:#e53935;border:.5px solid #e53935;border-radius:99px;padding:3px 10px;background:transparent;cursor:pointer;margin-left:auto;white-space:nowrap}
+.results{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.count-row{font-size:12px;color:#888;padding-bottom:6px;border-bottom:.5px solid #eee}
+.card{background:#fff;border:.5px solid #e0e0e0;border-radius:10px;padding:13px 15px}
+.card:hover{border-color:#b0bec5}
+.q-row{display:flex;gap:8px;margin-bottom:8px}
+.q-icon{min-width:28px;height:22px;padding:0 4px;background:#e8f5e9;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#2e7d32;flex-shrink:0;margin-top:1px;font-weight:600}
+.pager{display:flex;gap:6px;justify-content:center;padding:16px 0 8px;flex-wrap:wrap}
+.pg-btn{padding:6px 12px;border:.5px solid #ddd;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#555}
+.pg-btn:hover{border-color:#00b900;color:#00b900}
+.pg-cur{background:#00b900;color:#fff;border-color:#00b900;font-weight:600;cursor:default}
+.q-txt{font-size:13px;font-weight:500;color:#333;line-height:1.55;flex:1}
+.card-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.tag{font-size:10px;padding:2px 8px;border-radius:99px}
+.tag-cat{background:#e8f5e9;color:#2e7d32}
+.tag-yr{background:#f5f5f5;color:#888}
+.a-lbl{font-size:10px;color:#aaa;margin-bottom:4px}
+.a-txt{font-size:12px;color:#555;line-height:1.75;border-left:2px solid #00b900;padding-left:10px}
+.hi{background:#fff176;border-radius:2px;padding:0 1px}
+.empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:1;color:#bbb;font-size:13px;gap:8px;text-align:left;padding:20px 24px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
+.chip{padding:7px 14px;border:.5px solid #ddd;border-radius:99px;font-size:12px;color:#666;cursor:pointer;background:#fff}
+.chip:hover{border-color:#00b900;color:#1b5e20}
+.cat-card{background:#fff;border:.5px solid #e0e0e0;border-radius:8px;padding:10px 13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#444}
+.cat-card:hover{border-color:#00b900;color:#1b5e20;background:#f0fff0}
+.cat-card-cnt{font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:99px;padding:2px 8px;flex-shrink:0}
+.loading{color:#aaa;font-size:13px;text-align:center;padding:40px}
+.err{color:#e53935;font-size:13px;text-align:center;padding:20px}
+/* ── 時間／發話者弱化 ── */
+.meta-info{font-size:10px;color:#bbb;font-weight:400}
+/* ── 編輯模式標籤 ── */
+.tag-edit{display:inline-flex;align-items:center;gap:3px}
+.tag-del{cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;line-height:1;color:#666;transition:background .15s,transform .15s;border:none;padding:0;flex-shrink:0}
+.tag-del:hover{background:#e53935;color:#fff;transform:scale(1.2)}
+.tag-ren{cursor:pointer;font-size:9px;width:14px;height:14px;border-radius:50%;background:rgba(0,0,0,.08);display:inline-flex;align-items:center;justify-content:center;line-height:1;color:#388e3c;transition:background .15s,transform .15s;border:none;padding:0;flex-shrink:0}
+.tag-ren:hover{background:#c8e6c9;color:#1b5e20;transform:scale(1.2)}
+.rename-popup{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--surface,#fff);border:1px solid #ddd;border-radius:8px;padding:8px 10px;z-index:100;white-space:nowrap;min-width:170px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.rename-popup input{width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:6px}
+.rename-popup-row{display:flex;gap:4px}
+.rename-popup-row button{font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+.rename-popup-row button.ok{background:#00b900;border-color:#00b900;color:#fff}
+.tag-add{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 8px;border-radius:99px;border:1px dashed #aaa;color:#aaa;cursor:pointer;background:transparent;transition:border-color .15s,color .15s,transform .15s}
+.tag-add:hover{border-color:#00b900;color:#00b900;transform:scale(1.05)}
+/* ── 編輯模式 topbar 指示 ── */
+.edit-badge{font-size:10px;background:rgba(255,255,0,.25);color:#fff;padding:2px 8px;border-radius:99px;border:.5px solid rgba(255,255,255,.4)}
+/* ── Tag Popover ── */
+#tagPopover{position:fixed;background:#fff;border:.5px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:10px 12px 12px;z-index:999;display:none;width:360px;max-width:90vw}
+#popSearch{width:100%;border:1px solid #ddd;border-radius:7px;padding:5px 10px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:7px;outline:none}
+#popSearch:focus{border-color:#66bb6a}
+#popTagListWrap{max-height:220px;overflow-y:auto}
+#tagPopover .pop-title{font-size:10px;color:#aaa;margin-bottom:7px;letter-spacing:.5px}
+#tagPopover .pop-tags{display:flex;flex-wrap:wrap;gap:5px}
+#tagPopover .pop-tag{font-size:11px;padding:4px 10px;border-radius:99px;background:#f0fff0;color:#2e7d32;border:.5px solid #c8e6c9;cursor:pointer;transition:background .12s,transform .12s}
+#tagPopover .pop-tag:hover{background:#c8e6c9;transform:scale(1.06)}
+</style></head><body>
+<div class="topbar"><span onclick="clearSearch()" style="cursor:pointer;user-select:none" title="回首頁">📋 HyRead LINE Q&A 查詢系統</span>
+  <button onclick="clearSearch()" title="回首頁"
+    style="margin-left:10px;background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.35);color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">
+    🏠 首頁
+  </button>
+  <span id="editBadge" class="edit-badge" style="display:none">✏️ 標籤編輯模式</span>
+  {{ edit_tag_btn|safe }}
+  {{ admin_btn|safe }}
+  {{ user_label|safe }}
+  <a href="/qa/logout" style="margin-left:6px">登出</a>
+</div>
+<!-- Tag Popover -->
+<div id="tagPopover">
+  <input id="popSearch" type="text" placeholder="搜尋或新增標籤…" oninput="onPopSearch()" onclick="event.stopPropagation()">
+  <div id="popTagListWrap">
+    <div id="popTabBar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;padding:5px 7px;border-radius:7px;background:#e8e8e8;border:.5px solid #ccc"></div>
+    <div class="pop-tags" id="popTagList"></div>
+  </div>
+</div>
+<div class="yearbar">
+  <span style="font-size:11px;color:rgba(255,255,255,.6);margin-right:2px;">歷史資料：</span>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2019')">2019</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2020')">2020</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2021')">2021</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2022')">2022</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2023')">2023</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2024')">2024</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2025')">2025</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'2026')">2026</div>
+  <div class="yr-bar-btn" onclick="browseYearBar(this,'日常')">日常新增</div>
+</div>
+<div class="wrap">
+  <aside>
+    <div class="sb-lbl">標籤篩選</div>
+    <div id="sideTabBar" class="side-tab-bar"></div>
+    <div id="tagFilterList" style="line-height:1.9"></div>
+    <button id="tagClearBtn" class="tag-clear-btn" onclick="clearTagFilter()">✕ 清除篩選</button>
+  </aside>
+  <main>
+    <div class="search-bar">
+      <div class="search-row">
+        <input class="kw-input" id="kw" placeholder="輸入關鍵字，例如：無法登入、點數..."
+          onkeydown="if(event.key==='Enter')search()">
+        <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
+        <button class="clear-btn" onclick="clearSearch()" title="清除">&#x2715;</button>
+      </div>
+      <div class="yr-checks">
+        <label><input type="checkbox" id="yrAll" checked onchange="toggleAllYrs(this)">全選</label>
+        <label><input type="checkbox" class="yr-ck" value="2019" checked onchange="onYrCkChange()">2019</label>
+        <label><input type="checkbox" class="yr-ck" value="2020" checked onchange="onYrCkChange()">2020</label>
+        <label><input type="checkbox" class="yr-ck" value="2021" checked onchange="onYrCkChange()">2021</label>
+        <label><input type="checkbox" class="yr-ck" value="2022" checked onchange="onYrCkChange()">2022</label>
+        <label><input type="checkbox" class="yr-ck" value="2023" checked onchange="onYrCkChange()">2023</label>
+        <label><input type="checkbox" class="yr-ck" value="2024" checked onchange="onYrCkChange()">2024</label>
+        <label><input type="checkbox" class="yr-ck" value="2025" checked onchange="onYrCkChange()">2025</label>
+        <label><input type="checkbox" class="yr-ck" value="2026" checked onchange="onYrCkChange()">2026</label>
+        <label><input type="checkbox" class="yr-ck" value="日常" checked onchange="onYrCkChange()">日常</label>
+      </div>
+      <div class="meta">
+        <span id="scopeTxt">查詢範圍：全部年份</span>
+        <span id="cntBadge" class="meta-badge" style="display:none"></span>
+        <span style="margin-left:auto">直接搜尋資料庫，無需 AI 配額</span>
+      </div>
+      <div class="sel-tag-bar" id="selTagBar">
+        <span style="font-size:11px;color:#555;white-space:nowrap">已選標籤：</span>
+        <span id="selTagPills"></span>
+        <button class="sel-clear-all" onclick="clearTagFilter()">✕ 清除全部</button>
+      </div>
+    </div>
+    <div class="results" id="results">
+      <div class="empty" id="homeState">
+        <div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div>
+        <div style="width:100%;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div>
+            <button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button>
+          </div>
+          <div id="homeTabBar" class="home-tab-bar"></div>
+          <div id="homeTagChips" class="chips" style="justify-content:flex-start"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false,sidebarActiveGroup=null,homeActiveGroup=null,popActiveGroup=null;
+/* Popover 用的預設標籤 */
+var PRESET_TAGS=['維修','保固','召回','APP','帳號','物流','閱讀器','書櫃','破屏','線條','出線','忘記密碼','開放式','封閉式'];
+/* 各卡片目前的 tags 暫存 {id: [tags]} */
+var cardTags={};
+/* 目前 Popover 對應的 item id */
+var popTargetId=null;
+
+/* ── 載入並渲染側欄標籤 chips ── */
+var allTagsData=[];
+var TAGS_DEFAULT_SHOW=30;
+var tagsExpanded=false;
+
+function loadTagsSummary(){
+  var listEl=document.getElementById('tagFilterList');
+  if(listEl)listEl.innerHTML='<div style="font-size:11px;color:#aaa;padding:4px">載入中…</div>';
+  fetch('/qa/api/tags_with_groups').then(function(r){return r.json()}).then(function(d){
+    if(d.error||!d.tags){throw new Error(d.error||'no tags');}
+    allTagsData=d.tags||[];
+    renderGroupedTagChips(allTagsData);
+    var homeEl=document.getElementById('homeTagChips');
+    if(homeEl){renderHomeTagChips(allTagsData,homeEl);}
+  }).catch(function(err){
+    /* 先嘗試 fallback API */
+    fetch('/qa/api/tags_summary').then(function(r){return r.json()}).then(function(tags){
+      if(!tags||!tags.length)throw new Error('empty');
+      allTagsData=tags;
+      renderTagChips(tags,TAGS_DEFAULT_SHOW);
+    }).catch(function(){
+      if(listEl)listEl.innerHTML='<div style="font-size:11px;color:#e53935;padding:4px">標籤載入失敗，<a href="#" onclick="loadTagsSummary();return false;" style="color:#1565c0">重試</a></div>';
+    });
+  });
+}
+
+var GRP_COLORS={'裝置型號':'#1D9E75','問題類型':'#378ADD','配件':'#BA7517','系統與軟體':'#7F77DD','未分群':'#888780'};
+function grpColor(g){return GRP_COLORS[g]||'#888780';}
+
+function renderGroupedTagChips(tags){
+  var groups={};
+  tags.forEach(function(t){var g=t.group||'未分群';if(!groups[g])groups[g]=[];groups[g].push(t);});
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var allGrps=[];
+  order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
+  Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
+  if(!allGrps.length){document.getElementById('tagFilterList').innerHTML='<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';return;}
+  if(!sidebarActiveGroup||allGrps.indexOf(sidebarActiveGroup)<0)sidebarActiveGroup=allGrps[0];
+  var tabHtml='';
+  allGrps.forEach(function(g){
+    var act=g===sidebarActiveGroup?' active':'';
+    tabHtml+='<button class="side-tab-btn'+act+'" data-grp="'+esc(g)+'">'+esc(g)+'</button>';
+  });
+  var sideTabBar=document.getElementById('sideTabBar');
+  if(sideTabBar){sideTabBar.innerHTML=tabHtml;
+    document.querySelectorAll('.side-tab-btn').forEach(function(el){
+      el.addEventListener('click',function(){switchSideTab(this.dataset.grp);});
+    });
+  }
+  var chipsHtml='';
+  (groups[sidebarActiveGroup]||[]).forEach(function(t){
+    var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+    chipsHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+  });
+  document.getElementById('tagFilterList').innerHTML=chipsHtml||'<div style="font-size:11px;color:#ccc;padding:4px">（無標籤）</div>';
+}
+function switchSideTab(group){sidebarActiveGroup=group;renderGroupedTagChips(allTagsData);}
+
+function renderHomeTagChips(tags,el){
+  var groups={};
+  tags.forEach(function(t){var g=t.group||'未分群';if(!groups[g])groups[g]=[];groups[g].push(t);});
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  var allGrps=[];
+  order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
+  Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
+  if(!allGrps.length)return;
+  if(!homeActiveGroup||allGrps.indexOf(homeActiveGroup)<0)homeActiveGroup=allGrps[0];
+  var tabHtml='';
+  allGrps.forEach(function(g){
+    var act=g===homeActiveGroup?' active':'';
+    tabHtml+='<button class="home-tab-btn'+act+'" data-grp="'+esc(g)+'">'+esc(g)+'<span class="home-tab-cnt">'+(groups[g].length)+'</span></button>';
+  });
+  var homeTabBar=document.getElementById('homeTabBar');
+  if(homeTabBar){homeTabBar.innerHTML=tabHtml;
+    document.querySelectorAll('.home-tab-btn').forEach(function(b){
+      b.addEventListener('click',function(){switchHomeTab(this.dataset.grp);});
+    });
+  }
+  var chipsHtml='';
+  (groups[homeActiveGroup]||[]).forEach(function(t){
+    var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+    chipsHtml+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="pickHomeTag(this.dataset.tag)">'+esc(t.tag)+'</span>';
+  });
+  el.innerHTML=chipsHtml;
+}
+function switchHomeTab(group){homeActiveGroup=group;var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
+
+function browseYearBar(el,yr){
+  document.querySelectorAll('.yr-bar-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  browseYear(null,yr);
+}
+
+function renderTagChips(tags,limit){
+  var showMore=document.getElementById('tagShowMore');
+  var list=limit?tags.slice(0,limit):tags;
+  var html='';
+  list.forEach(function(t){
+    var active=selectedTags.indexOf(t.tag)>=0?' active':'';
+    html+='<span class="tag-filter-chip'+active+'" data-tag="'+esc(t.tag)+'" onclick="toggleTagFilter(this)">'+esc(t.tag)+'</span>';
+  });
+  document.getElementById('tagFilterList').innerHTML=html||'<div style="font-size:11px;color:#ccc;padding:4px">尚無標籤資料</div>';
+  if(showMore){showMore.style.display=(!tagsExpanded&&tags.length>TAGS_DEFAULT_SHOW)?'block':'none';}
+}
+
+function renderSelTagBar(){
+  var bar=document.getElementById('selTagBar');
+  var pills=document.getElementById('selTagPills');
+  if(!selectedTags.length){bar.classList.remove('has-tags');pills.innerHTML='';return;}
+  bar.classList.add('has-tags');
+  var html='';
+  selectedTags.forEach(function(t){
+    html+='<span class="sel-tag-pill" data-tag="'+escAttr(t)+'">'+esc(t)+'<span class="rm-sel-tag" title="移除">×</span></span>';
+  });
+  pills.innerHTML=html;
+  document.querySelectorAll('#selTagPills .rm-sel-tag').forEach(function(el){
+    el.addEventListener('click',function(){removeSelTag(this.parentElement.dataset.tag);});
+  });
+}
+function removeSelTag(tag){
+  var idx=selectedTags.indexOf(tag);
+  if(idx>=0)selectedTags.splice(idx,1);
+  document.querySelectorAll('.tag-filter-chip[data-tag="'+tag+'"]').forEach(function(e){e.classList.remove('active');});
+  var cb=document.getElementById('tagClearBtn');
+  if(selectedTags.length>0)cb.classList.add('visible');else cb.classList.remove('visible');
+  renderSelTagBar();
+  if(selectedTags.length>0)_doSearch();else clearSearch();
+}
+function pickHomeTag(tag){
+  exitBrowse();
+  if(selectedTags.indexOf(tag)<0){
+    selectedTags.push(tag);
+    var chip=document.querySelector('.tag-filter-chip[data-tag="'+tag+'"]');
+    if(chip)chip.classList.add('active');
+    var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.add('visible');
+  }
+  renderSelTagBar();
+  _doSearch();
+}
+
+loadTagsSummary();
+
+function toggleTagFilter(el){
+  var tag=el.dataset.tag;
+  var idx=selectedTags.indexOf(tag);
+  if(idx>=0){selectedTags.splice(idx,1);el.classList.remove('active');}
+  else{selectedTags.push(tag);el.classList.add('active');}
+  var clearBtn=document.getElementById('tagClearBtn');
+  if(selectedTags.length>0)clearBtn.classList.add('visible');else clearBtn.classList.remove('visible');
+
+  renderSelTagBar();
+  exitBrowse();
+  _doSearch();
+}
+
+function clearTagFilter(){
+  selectedTags=[];
+  document.querySelectorAll('.tag-filter-chip.active').forEach(function(e){e.classList.remove('active')});
+  var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.remove('visible');
+  renderSelTagBar();
+  var kw=document.getElementById('kw').value.trim();
+  if(!kw&&!browseMode)clearSearch();else _doSearch();
+}
+
+function toggleEditMode(){
+  editMode=!editMode;
+  var btn=document.getElementById('editToggle');
+  var badge=document.getElementById('editBadge');
+  if(editMode){
+    btn.textContent='✅ 結束編輯';
+    btn.style.background='rgba(255,200,0,.3)';
+    badge.style.display='';
+  }else{
+    btn.textContent='✏️ 編輯標籤';
+    btn.style.background='rgba(255,255,255,.15)';
+    badge.style.display='none';
+    closePopover();
+  }
+  /* 重新渲染目前結果 */
+  var lastD=window._lastSearchResult;
+  if(lastD)renderResults(lastD,window._lastKw||'');
+}
+
+/* ── Popover 控制 ── */
+function renderPopoverTabs(itemId){
+  var existing=cardTags[itemId]||[];
+  var kw=(document.getElementById('popSearch')||{}).value||'';
+  kw=kw.trim().toLowerCase();
+  var groups={};
+  var order=['裝置型號','問題類型','配件','系統與軟體','未分群'];
+  allTagsData.forEach(function(x){
+    var t=x.tag||x.name||x; var g=x.group||'未分群';
+    if(existing.indexOf(t)<0){if(!groups[g])groups[g]=[];groups[g].push(t);}
+  });
+  var tabBar=document.getElementById('popTabBar');
+  var tagList=document.getElementById('popTagList');
+  if(kw){
+    // 搜尋模式：跨群組過濾，隱藏頁籤
+    tabBar.style.display='none';
+    var matched=[];
+    var exactMatch=false;
+    allTagsData.forEach(function(x){
+      var t=x.tag||x.name||x;
+      if(existing.indexOf(t)>=0)return;
+      if(t.toLowerCase().indexOf(kw)>=0){matched.push(t);}
+      if(t.toLowerCase()===kw)exactMatch=true;
+    });
+    var chips=matched.map(function(t){
+      return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+escAttr(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
+    }).join('');
+    if(!exactMatch){
+      var kwRaw=(document.getElementById('popSearch')||{}).value||'';
+      chips+='<div class="pop-tag" style="background:#e3f2fd;color:#1565c0;border-color:#90caf9;" data-id="'+itemId+'" data-tag="'+escAttr(kwRaw.trim())+'" onclick="createAndAddTag(this)">＋ 新增「'+esc(kwRaw.trim())+'」</div>';
+    }
+    tagList.innerHTML=chips||'<span style="font-size:11px;color:#aaa;">無符合標籤</span>';
+    return true;
+  }
+  // 正常模式：群組頁籤
+  tabBar.style.display='';
+  var allGrps=[];
+  order.forEach(function(g){if(groups[g]&&groups[g].length)allGrps.push(g);});
+  Object.keys(groups).forEach(function(g){if(order.indexOf(g)<0&&groups[g].length)allGrps.push(g);});
+  var hasAny=allGrps.length>0;
+  if(!popActiveGroup||allGrps.indexOf(popActiveGroup)<0)popActiveGroup=allGrps[0]||null;
+  tabBar.innerHTML=allGrps.map(function(g){
+    var isAct=g===popActiveGroup;
+    var s=isAct?'background:#e8f5e9;color:#1b5e20;border:.5px solid #a5d6a7;font-weight:500':'color:#666;background:transparent;border:.5px solid transparent';
+    return '<button class="pop-grp-tab" data-grp="'+escAttr(g)+'" style="font-size:10px;padding:2px 8px;border-radius:5px;cursor:pointer;font-family:inherit;'+s+'">'+esc(g)+'</button>';
+  }).join('');
+  tabBar.querySelectorAll('.pop-grp-tab').forEach(function(btn){
+    btn.addEventListener('click',function(e){e.stopPropagation();popActiveGroup=this.dataset.grp;renderPopoverTabs(itemId);});
+  });
+  var chips=(groups[popActiveGroup]||[]).map(function(t){
+    return '<div class="pop-tag" data-id="'+itemId+'" data-tag="'+escAttr(t)+'" onclick="handlePopTag(this)">'+esc(t)+'</div>';
+  }).join('');
+  tagList.innerHTML=chips;
+  return hasAny||true;
+}
+function onPopSearch(){
+  if(popTargetId!=null)renderPopoverTabs(popTargetId);
+}
+function createAndAddTag(el){
+  var tag=(el.dataset.tag||'').trim();
+  if(!tag)return;
+  var itemId=parseInt(el.dataset.id);
+  addTag(itemId,tag);
+  // 新標籤加入 allTagsData 讓下次搜尋可見
+  var exists=allTagsData.some(function(x){return (x.tag||x.name||x)===tag;});
+  if(!exists)allTagsData.push({tag:tag,count:1,group:'未分群'});
+}
+function openPopover(itemId, btnEl){
+  popTargetId=itemId;
+  var srch=document.getElementById('popSearch');if(srch)srch.value='';
+  var pop=document.getElementById('tagPopover');
+  if(!renderPopoverTabs(itemId)){
+    pop.style.display='none';
+    return;
+  }
+  var rect=btnEl.getBoundingClientRect();
+  pop.style.display='block';
+  var popH=Math.min(260,pop.scrollHeight||260);var popW=360;
+  var spaceBelow=window.innerHeight-rect.bottom-8;
+  var spaceAbove=rect.top-8;
+  if(spaceBelow>=popH||spaceBelow>=spaceAbove){
+    pop.style.top=(rect.bottom+6)+'px';
+    pop.style.bottom='';
+    pop.style.maxHeight=Math.max(120,spaceBelow-8)+'px';
+  }else{
+    pop.style.top='';
+    pop.style.bottom=(window.innerHeight-rect.top+6)+'px';
+    pop.style.maxHeight=Math.max(120,spaceAbove-8)+'px';
+  }
+  var left=Math.min(rect.left, window.innerWidth-popW-12);
+  pop.style.left=Math.max(8,left)+'px';
+}
+function closePopover(){
+  document.getElementById('tagPopover').style.display='none';
+  popTargetId=null;
+}
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('tagPopover');
+  if(pop.style.display==='block'&&!pop.contains(e.target)&&!e.target.classList.contains('tag-add')){
+    closePopover();
+  }
+});
+
+/* ── 年份勾選 ── */
+function getCheckedYears(){
+  if(document.getElementById('yrAll').checked)return[];
+  return Array.from(document.querySelectorAll('.yr-ck:checked')).map(function(c){return c.value});
+}
+function toggleAllYrs(cb){
+  document.querySelectorAll('.yr-ck').forEach(function(c){c.checked=cb.checked});
+  updateScopeTxt();
+}
+function onYrCkChange(){
+  var all=document.querySelectorAll('.yr-ck'),ck=document.querySelectorAll('.yr-ck:checked');
+  document.getElementById('yrAll').checked=(all.length===ck.length);
+  updateScopeTxt();
+}
+function updateScopeTxt(){
+  var years=getCheckedYears();
+  document.getElementById('scopeTxt').textContent='查詢範圍：'+(years.length===0?'全部年份':years.join('、'));
+}
+
+/* ── 側欄年份瀏覽 ── */
+function browseYear(el,y){
+  browseMode=true;browseYr=y;
+  selectedTags=[];
+  document.querySelectorAll('.tag-filter-chip').forEach(function(e){e.classList.remove('active')});
+  var cb=document.getElementById('tagClearBtn');if(cb)cb.classList.remove('visible');
+  document.getElementById('kw').value='';
+  document.querySelectorAll('.yr-link').forEach(function(e){e.classList.remove('active')});
+  el.classList.add('active');
+  document.getElementById('scopeTxt').textContent='瀏覽：'+y+(y==='日常'?'新增':' 年');
+  _doSearch();
+}
+
+/* ── 退出瀏覽模式 ── */
+function exitBrowse(){
+  browseMode=false;browseYr='';
+  document.querySelectorAll('.yr-link').forEach(function(e){e.classList.remove('active')});
+  updateScopeTxt();
+}
+
+function fill(t){exitBrowse();document.getElementById('kw').value=t;_doSearch()}
+function clearSearch(){
+  document.getElementById('kw').value='';
+  document.getElementById('kw').focus();
+  exitBrowse();
+  document.getElementById('cntBadge').style.display='none';
+  document.getElementById('results').innerHTML='<div class="empty" id="homeState"><div style="font-size:15px;font-weight:500;color:#333;margin-bottom:4px">HyRead 客服歷史問答查詢</div><div style="font-size:12px;color:#aaa;margin-bottom:16px">點選標籤快速篩選，或直接輸入關鍵字搜尋</div><div style="width:100%;margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:10px;color:#bbb;letter-spacing:.5px">點選標籤篩選</div><button id="homeClearBtn" onclick="clearTagFilter()" style="font-size:10px;color:#999;padding:3px 10px;border:.5px solid #e0e0e0;border-radius:99px;cursor:pointer;background:transparent;width:auto;">✕ 清除篩選</button></div><div id="homeTabBar" class="home-tab-bar"></div><div id="homeTagChips" class="chips" style="justify-content:flex-start"></div></div></div>';
+  if(allTagsData.length){var hEl=document.getElementById('homeTagChips');if(hEl)renderHomeTagChips(allTagsData,hEl);}
+}
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
+function hilite(text,kw){
+  if(!kw)return text;
+  var result='',lower=text.toLowerCase(),kl=kw.toLowerCase(),i=0;
+  while(i<text.length){
+    var idx=lower.indexOf(kl,i);
+    if(idx<0){result+=text.slice(i);break}
+    result+=text.slice(i,idx)+'<span class="hi">'+text.slice(idx,idx+kw.length)+'</span>';
+    i=idx+kw.length;
+  }
+  return result;
+}
+function search(){
+  var kw=document.getElementById('kw').value.trim();
+  if(kw)exitBrowse();
+  _doSearch();
+}
+function _doSearch(page){
+  currentPage=page||1;
+  var kw=document.getElementById('kw').value.trim();
+  var years=browseMode?[browseYr]:getCheckedYears();
+  if(!kw&&!selectedTags.length&&!browseMode)return;
+  document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
+  document.getElementById('cntBadge').style.display='none';
+  fetch('/qa/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({keyword:kw,years:years,tags:selectedTags,page:currentPage})})
+  .then(function(r){return r.json()}).then(function(d){renderResults(d,kw)})
+  .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
+}
+/* 將 Q/A 文字中的 （時間 姓名） 括號部分弱化為灰色小字 */
+function muteMetaInfo(text){
+  return esc(text).replace(/（([^）]{4,60})）/g,function(m,inner){
+    return '<span class="meta-info">（'+inner+'）</span>';
+  });
+}
+
+/* 渲染一張卡片的 tags 區塊 */
+function renderTagsHtml(itemId, tags){
+  var arr=tags||[];
+  cardTags[itemId]=arr.slice();
+  var html='<div class="card-tags" id="tags-'+itemId+'">';
+  if(editMode){
+    arr.forEach(function(t){
+      html+='<span class="tag tag-cat tag-edit" style="position:relative">'
+        +esc(t)
+        +'<button class="tag-ren" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="openRenamePopup(this);event.stopPropagation()" title="改名">✏</button>'
+        +'<button class="tag-del" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handleDelTag(this)" title="移除">✕</button>'
+        +'</span>';
+    });
+    html+='<button class="tag-add" onclick="openPopover('+itemId+',this)">＋ 新增標籤</button>';
+  }else{
+    arr.forEach(function(t){
+      html+='<span class="tag tag-cat">'+esc(t)+'</span>';
+    });
+  }
+  html+='</div>';
+  return html;
+}
+
+function renderResults(d,kw){
+  window._lastSearchResult=d;
+  window._lastKw=kw;
+  var badge=document.getElementById('cntBadge');
+  var browseLabel=browseYr+(browseYr==='日常'?'新增':' 年');
+  if(!d.results||d.results.length===0){
+    badge.style.display='none';
+    var label=browseMode?browseLabel:(kw?'「'+esc(kw)+'」':'');
+    document.getElementById('results').innerHTML='<div class="empty"><div>找不到相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或標籤試試</div></div>';
+    return;
+  }
+  badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
+  var total=d.total,page=d.page||1,totalPages=d.total_pages||1,pageSize=d.page_size||50;
+  var startNum=(page-1)*pageSize+1,endNum=Math.min(page*pageSize,total);
+  var parts=[];
+  if(selectedTags.length)parts.push('標籤：'+selectedTags.map(function(t){return esc(t)}).join(' × '));
+  if(kw)parts.push('關鍵字：「'+esc(kw)+'」');
+  if(browseMode)parts.push(browseLabel);
+  var cntTxt=(parts.length?parts.join('　')+'　— ':'')+'共 '+total+' 筆Q&A';
+  if(total>pageSize)cntTxt+='，第 '+page+'/'+totalPages+' 頁（'+startNum+'～'+endNum+' 筆）';
+  var html='<div class="count-row">'+cntTxt+'</div>';
+  d.results.forEach(function(r,idx){
+    var itemId=r.id;
+    var tags=Array.isArray(r.tags)&&r.tags.length?r.tags:
+             (r.category||'').split(/[、,，]/).filter(function(c){return c.trim()}).slice(0,3);
+    var qBody=(r.q_text||'').replace(/^Q\d+[：:]\s*/,'');
+    html+='<div class="card" data-id="'+itemId+'">'
+      +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div>'
+      +'<div class="q-txt">'+hilite(muteMetaInfo(qBody),kw)+'</div>'
+      +'<div style="font-size:10px;color:#ccc;flex-shrink:0;align-self:flex-start;padding-top:2px;">ID'+itemId+'</div></div>'
+      +renderTagsHtml(itemId,tags)
+      +'<div class="a-lbl">回答</div>'
+      +'<div class="a-txt">'+hilite(muteMetaInfo(r.a_text||''),kw)+'</div>'
+      +'</div>';
+  });
+  // 分頁列
+  if(totalPages>1){
+    html+='<div class="pager">';
+    if(page>1)html+='<button class="pg-btn" onclick="_doSearch('+(page-1)+')">&#8592; 上一頁</button>';
+    var start=Math.max(1,page-3),end=Math.min(totalPages,page+3);
+    for(var p=start;p<=end;p++){
+      if(p===page)html+='<button class="pg-btn pg-cur">'+p+'</button>';
+      else html+='<button class="pg-btn" onclick="_doSearch('+p+')">'+p+'</button>';
+    }
+    if(page<totalPages)html+='<button class="pg-btn" onclick="_doSearch('+(page+1)+')">下一頁 &#8594;</button>';
+    html+='</div>';
+  }
+  document.getElementById('results').innerHTML=html;
+}
+
+/* ── 標籤操作 ── */
+function updateTagsOnServer(itemId, tags, onSuccess){
+  fetch('/qa/api/update_tags',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:itemId,tags:tags})})
+  .then(function(r){if(r.status===302||r.redirected||(!r.ok&&r.status!==400&&r.status!==500)){throw new Error('session');}return r.json()}).then(function(d){
+    if(d.ok){
+      cardTags[itemId]=d.tags;
+      /* 重新渲染該卡片的 tags 區塊 */
+      var el=document.getElementById('tags-'+itemId);
+      if(el)el.outerHTML=renderTagsHtml(itemId,d.tags);
+      if(onSuccess)onSuccess();
+    }else{
+      alert('更新失敗：'+d.error);
+    }
+  }).catch(function(e){if(e&&e.message==='session'){alert('登入已過期，請重新整理頁面並重新登入。');window.location='/qa/login';}else{alert('網路錯誤，請稍後再試');}});
+}
+
+function removeTag(itemId, tag){
+  var cur=(cardTags[itemId]||[]).filter(function(t){return t!==tag});
+  updateTagsOnServer(itemId,cur,null);
+}
+
+function addTag(itemId, tag){
+  closePopover();
+  var cur=(cardTags[itemId]||[]);
+  if(cur.indexOf(tag)>=0)return;
+  var next=cur.concat([tag]);
+  updateTagsOnServer(itemId,next,null);
+}
+function handleDelTag(el){
+  removeTag(parseInt(el.dataset.id), el.dataset.tag);
+}
+function handlePopTag(el){
+  addTag(parseInt(el.dataset.id), el.dataset.tag);
+}
+
+var _renamePopupEl=null;
+function openRenamePopup(btn){
+  closeRenamePopup();
+  var tag=btn.dataset.tag;
+  var itemId=parseInt(btn.dataset.id);
+  var pop=document.createElement('div');
+  pop.className='rename-popup';
+  pop.innerHTML='<div style="font-size:11px;color:#888;margin-bottom:5px">全域改名（所有 QA 同步）</div>'
+    +'<input id="_renInp" data-old="'+esc(tag)+'" value="'+esc(tag)+'" />'
+    +'<div class="rename-popup-row">'
+    +'<button id="_renOkBtn" class="ok" onclick="confirmRename()">確認</button>'
+    +'<button onclick="closeRenamePopup()">取消</button>'
+    +'</div>';
+  btn.closest('span').appendChild(pop);
+  _renamePopupEl=pop;
+  var inp=document.getElementById('_renInp');
+  if(inp){
+    inp.focus();inp.select();
+    inp.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){e.preventDefault();confirmRename();}
+      if(e.key==='Escape'){closeRenamePopup();}
+    });
+  }
+  pop.addEventListener('click',function(e){e.stopPropagation();});
+}
+function closeRenamePopup(){
+  if(_renamePopupEl){_renamePopupEl.remove();_renamePopupEl=null;}
+}
+function confirmRename(forceMerge){
+  var inp=document.getElementById('_renInp');
+  if(!inp)return;
+  var oldName=inp.dataset.old||'';
+  var newName=inp.value.trim();
+  if(!newName){alert('新名稱不可空白');return;}
+  if(newName===oldName){closeRenamePopup();return;}
+  var okBtn=document.getElementById('_renOkBtn');
+  if(okBtn){okBtn.disabled=true;okBtn.textContent='存檔中...';}
+  fetch('/qa/api/rename_tag',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({old_name:oldName,new_name:newName,force_merge:!!forceMerge})})
+  .then(function(r){if(r.status===302||r.redirected||!r.ok&&r.status!==400&&r.status!==500){throw new Error('session');}return r.json();}).then(function(d){
+    if(d.conflict){
+      var pop=_renamePopupEl;
+      if(pop){
+        pop.innerHTML='<div style="font-size:12px;font-weight:500;color:#854f0b;margin-bottom:6px">&#9888; 標籤已存在</div>'
+          +'<div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">「'+esc(newName)+'」已存在。<br>是否將「'+esc(oldName)+'」合併至「'+esc(newName)+'」？</div>'
+          +'<div style="display:flex;gap:5px">'
+          +'<button onclick="confirmRename(true)" style="font-size:11px;padding:4px 10px;border-radius:6px;background:#e65100;border:none;color:#fff;cursor:pointer">合併</button>'
+          +'<button onclick="closeRenamePopup()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:0.5px solid #ddd;background:transparent;cursor:pointer">取消</button>'
+          +'</div>';
+        var fakeInp=document.createElement('input');
+        fakeInp.id='_renInp';fakeInp.dataset.old=oldName;fakeInp.value=newName;
+        fakeInp.style.display='none';pop.appendChild(fakeInp);
+      }
+      return;
+    }
+    if(d.ok){
+      closeRenamePopup();
+      var affected=d.updated||0;
+      document.querySelectorAll('[data-tag="'+oldName+'"]').forEach(function(el){
+        el.dataset.tag=newName;
+        var span=el.closest('span.tag');
+        if(span){var txt=span.childNodes[0];if(txt&&txt.nodeType===3)txt.textContent=newName;}
+      });
+      Object.keys(cardTags).forEach(function(id){
+        cardTags[id]=cardTags[id].map(function(t){return t===oldName?newName:t;});
+      });
+      if(affected>0){loadSidebarTags();loadHomeTags();}
+    }else{var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}alert('改名失敗：'+(d.error||'未知錯誤'));}
+  }).catch(function(e){var okBtn=document.getElementById('_renOkBtn');if(okBtn){okBtn.disabled=false;okBtn.textContent='確認';}if(e&&e.message==='session'){alert('登入已過期，請重新整理頁面並重新登入。');window.location='/qa/login';}else{alert('網路錯誤，請稍後再試');}});
+}
+document.addEventListener('click',function(){closeRenamePopup();});
+</script></body></html>
