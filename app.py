@@ -800,7 +800,7 @@ def _load_batch_history():
 
 def _save_batch_history(history):
     val = _json_mod.dumps(history, ensure_ascii=False)
-    existing = supabase.table('settings').select('id').eq('key', 'batch_ops_history').execute()
+    existing = supabase.table('settings').select('value').eq('key', 'batch_ops_history').execute()
     if existing.data:
         supabase.table('settings').update({'value': val}).eq('key', 'batch_ops_history').execute()
     else:
