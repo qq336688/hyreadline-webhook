@@ -785,6 +785,79 @@ def admin_export_tags_csv():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/admin/api/tags/batch_ops', methods=['POST'])
+@require_admin
+def admin_batch_tag_ops():
+    body = request.get_json()
+    tag_ops   = body.get('tag_ops', [])
+    group_ops = body.get('group_ops', [])
+    results   = []
+
+    # 1. 群組改名
+    for op in group_ops:
+        old_g = (op.get('group') or '').strip()
+        new_g = (op.get('rename_to') or '').strip()
+        if not old_g or not new_g or old_g == new_g:
+            continue
+        try:
+            supabase.table('tag_groups').update({'group_name': new_g}).eq('group_name', old_g).execute()
+            results.append({'type':'group','group':old_g,'action':'renamed','rename_to':new_g})
+        except Exception as e:
+            results.append({'type':'group','group':old_g,'action':'error','error':str(e)})
+
+    # 2. 標籤操作
+    for op in tag_ops:
+        tag       = (op.get('tag') or '').strip()
+        rename_to = (op.get('rename_to') or '').strip()
+        delete    = bool(op.get('delete'))
+        new_group = (op.get('new_group') or '').strip()
+        if not tag:
+            continue
+        try:
+            if delete:
+                updated = 0; offset = 0
+                while True:
+                    rows = supabase.table('qa_items').select('id,tags').contains('tags',[tag]).range(offset,offset+199).execute().data or []
+                    for row in rows:
+                        supabase.table('qa_items').update({'tags':[t for t in (row['tags'] or []) if t!=tag]}).eq('id',row['id']).execute()
+                        updated += 1
+                    if len(rows)<200: break
+                    offset += 200
+                supabase.table('tag_groups').delete().eq('tag_name',tag).execute()
+                results.append({'type':'tag','tag':tag,'action':'deleted','updated':updated})
+                continue
+
+            effective = tag
+            if rename_to and rename_to != tag:
+                updated = 0; offset = 0
+                while True:
+                    rows = supabase.table('qa_items').select('id,tags').contains('tags',[tag]).range(offset,offset+199).execute().data or []
+                    for row in rows:
+                        supabase.table('qa_items').update({'tags':[rename_to if t==tag else t for t in (row['tags'] or [])]}).eq('id',row['id']).execute()
+                        updated += 1
+                    if len(rows)<200: break
+                    offset += 200
+                exists = supabase.table('tag_groups').select('tag_name').eq('tag_name',rename_to).execute().data
+                if exists:
+                    supabase.table('tag_groups').delete().eq('tag_name',tag).execute()
+                    action = 'merged'
+                else:
+                    supabase.table('tag_groups').update({'tag_name':rename_to}).eq('tag_name',tag).execute()
+                    action = 'renamed'
+                results.append({'type':'tag','tag':tag,'action':action,'rename_to':rename_to,'updated':updated})
+                effective = rename_to
+
+            if new_group:
+                supabase.table('tag_groups').update({'group_name':new_group}).eq('tag_name',effective).execute()
+                if not rename_to or rename_to == tag:
+                    results.append({'type':'tag','tag':tag,'action':'moved_group','new_group':new_group})
+
+        except Exception as e:
+            results.append({'type':'tag','tag':tag,'action':'error','error':str(e)})
+
+    return jsonify({'ok':True,'results':results})
+
+
 @app.route('/qa/api/tags_with_groups', methods=['GET'])
 @require_qa
 def qa_tags_with_groups():
