@@ -619,8 +619,9 @@ function renderResults(d,kw){
   var html='<div class="count-row">'+cntTxt+'</div>';
   d.results.forEach(function(r,idx){
     var itemId=r.id;
-    var tags=Array.isArray(r.tags)&&r.tags.length?r.tags:
-             (r.category||'').split(/[、,，]/).filter(function(c){return c.trim()}).slice(0,3);
+    var tags=cardTags[itemId]!==undefined?cardTags[itemId]:
+             (Array.isArray(r.tags)&&r.tags.length?r.tags:
+             (r.category||'').split(/[、,，]/).filter(function(c){return c.trim()}).slice(0,3));
     var qBody=(r.q_text||'').replace(/^Q\d+[：:]\s*/,'');
     html+='<div class="card" data-id="'+itemId+'">'
       +'<div class="q-row"><div class="q-icon">Q'+(idx+1)+'</div>'
