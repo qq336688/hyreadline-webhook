@@ -1598,9 +1598,9 @@ function exportTagsCSV(){
     btn.disabled=false;btn.textContent='📥 匯出標籤';
     if(d.error){alert('錯誤：'+d.error);return;}
     var rows=d.rows||[];
-    var csv='\uFEFF群組,標籤,QA數量\n';
+    var csv='\\uFEFF群組,標籤,QA數量\\n';
     rows.forEach(function(r){
-      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+'\n';
+      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+'\\n';
     });
     var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     var url=URL.createObjectURL(blob);
