@@ -764,7 +764,7 @@ function renderTagsHtml(itemId, tags){
     arr.forEach(function(t){
       html+='<span class="tag tag-cat tag-edit" style="position:relative">'
         +esc(t)
-        +'<button class="tag-ren" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="openRenamePopup(this)" title="改名">✏</button>'
+        +'<button class="tag-ren" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="openRenamePopup(this);event.stopPropagation()" title="改名">✏</button>'
         +'<button class="tag-del" data-id="'+itemId+'" data-tag="'+esc(t)+'" onclick="handleDelTag(this)" title="移除">✕</button>'
         +'</span>';
     });
@@ -1356,7 +1356,7 @@ tr:hover td{background:#fafafa}
       <span style="font-size:12px;color:#aaa;">拖曳標籤到其他欄位即可移動群組</span>
       <button onclick="cleanupGhostTags()" id="cleanupBtn" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #e57373;color:#c62828;background:transparent;cursor:pointer;">🧹 清除幽靈標籤</button>
       <span id="ghostStats" style="font-size:11px;color:#888;"></span>
-      <button onclick="createGroup()" style="margin-left:auto;">＋ 新增群組</button>
+      <button onclick="exportTagsCSV()" style="font-size:11px;padding:3px 10px;border-radius:6px;border:.5px solid #1565c0;color:#1565c0;background:transparent;cursor:pointer;margin-left:auto;">📥 匯出標籤</button><button onclick="createGroup()">＋ 新增群組</button>
     </div>
     <div id="dragLog" style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:5px 10px;border-radius:6px;margin-bottom:8px;display:none;"></div>
     <div id="dragBoard" style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px;align-items:flex-start;min-height:120px;"></div>
@@ -1441,7 +1441,7 @@ function renderDragBoard(){
       hdrEl.addEventListener('drop',function(e){
         e.preventDefault();col.style.outline='';
         if(!colDragSrc||colDragSrc===grpName)return;
-        var cur=Array.from(document.querySelectorAll('#dragBoard [data-grp]')).map(function(c){return c.dataset.grp;});
+        var cur=Array.from(document.querySelectorAll('#dragBoard > [data-grp]')).map(function(c){return c.dataset.grp;});
         var from=cur.indexOf(colDragSrc),to=cur.indexOf(grpName);
         if(from<0||to<0)return;
         cur.splice(from,1);cur.splice(to,0,colDragSrc);
@@ -1591,6 +1591,26 @@ function cleanupGhostTags(){
   }).catch(function(){if(btn){btn.textContent='🧹 清除幽靈標籤';btn.disabled=false;}alert('網路錯誤');});
 }
 
+function exportTagsCSV(){
+  var btn=event.target;
+  btn.disabled=true;btn.textContent='載入中...';
+  fetch('/admin/api/tags/export_csv').then(r=>r.json()).then(function(d){
+    btn.disabled=false;btn.textContent='📥 匯出標籤';
+    if(d.error){alert('錯誤：'+d.error);return;}
+    var rows=d.rows||[];
+    var csv='\uFEFF群組,標籤,QA數量\n';
+    rows.forEach(function(r){
+      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+'\n';
+    });
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    var today=new Date();var mm=String(today.getMonth()+1).padStart(2,'0');var dd=String(today.getDate()).padStart(2,'0');
+    a.download='HyRead_標籤盤點_'+today.getFullYear()+mm+dd+'.csv';
+    a.click();URL.revokeObjectURL(url);
+  }).catch(function(){btn.disabled=false;btn.textContent='📥 匯出標籤';alert('匯出失敗');});
+}
 function createGroup(){
   var name=prompt('請輸入新群組名稱：','');
   if(name===null)return;name=name.trim();
@@ -2316,6 +2336,41 @@ def admin_delete_tag_chip():
             return jsonify({'error': f'標籤被 {in_use} 筆 QA 使用', 'in_use_count': in_use})
         supabase.table('tag_groups').delete().eq('tag_name', tag_name).execute()
         return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/api/tags/export_csv', methods=['GET'])
+@require_admin
+def admin_export_tags_csv():
+    # Export all tags with group and QA count
+    try:
+        tag_count = {}
+        offset = 0
+        while True:
+            rows = supabase.table('qa_items').select('tags').not_.is_('tags','null').range(offset, offset+999).execute().data or []
+            if not rows: break
+            for r in rows:
+                for t in (r.get('tags') or []):
+                    if t:
+                        tag_count[t] = tag_count.get(t, 0) + 1
+            if len(rows) < 1000: break
+            offset += 1000
+        grp_map = {}
+        g_offset = 0
+        while True:
+            grp_rows = supabase.table('tag_groups').select('tag_name,group_name').range(g_offset, g_offset+999).execute().data or []
+            if not grp_rows: break
+            for r in grp_rows:
+                if not r['tag_name'].startswith('__def__:'):
+                    grp_map[r['tag_name']] = r['group_name']
+            if len(grp_rows) < 1000: break
+            g_offset += 1000
+        all_tags = set(tag_count.keys()) | set(grp_map.keys())
+        rows_out = sorted(
+            [{'tag': t, 'group': grp_map.get(t, '未分群'), 'count': tag_count.get(t, 0)} for t in all_tags],
+            key=lambda x: (x['group'], -x['count'])
+        )
+        return jsonify({'rows': rows_out, 'total_tags': len(rows_out), 'total_qa': sum(r['count'] for r in rows_out)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
