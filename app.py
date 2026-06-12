@@ -1617,8 +1617,8 @@ function showDeleteConfirmModal(tag, count, items){
     +'<div style="font-size:12px;color:#666;margin-bottom:10px;">此標籤被 <b>'+count+'</b> 筆 QA 使用中，以下為相關 QA 原文：</div>'
     +'<div style="overflow-y:auto;flex:1;margin-bottom:14px;padding-right:2px;">'+rows+more+'</div>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
-    +'<button onclick="document.getElementById(\'_delConfirmModal\').remove()" style="padding:6px 16px;border-radius:6px;border:.5px solid #ddd;background:#fff;cursor:pointer;font-size:12px;">取消</button>'
-    +'<button onclick="forceDeleteTag(\''+escAttrG(tag)+'\')" style="padding:6px 16px;border-radius:6px;border:none;background:#c62828;color:#fff;cursor:pointer;font-size:12px;font-weight:500;">強制刪除（從所有 QA 移除）</button>'
+    +'<button onclick="document.getElementById(\\'_delConfirmModal\\').remove()" style="padding:6px 16px;border-radius:6px;border:.5px solid #ddd;background:#fff;cursor:pointer;font-size:12px;">取消</button>'
+    +'<button onclick="forceDeleteTag(\\''+escAttrG(tag)+'\\')" style="padding:6px 16px;border-radius:6px;border:none;background:#c62828;color:#fff;cursor:pointer;font-size:12px;font-weight:500;">強制刪除（從所有 QA 移除）</button>'
     +'</div>'
     +'</div>';
   document.body.appendChild(modal);
