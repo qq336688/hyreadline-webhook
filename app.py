@@ -1360,6 +1360,23 @@ def handle_image(event):
     save_message("[圖片]", sender, file_url=url, file_type="image")
 
 
+@handler.add(MessageEvent, message=FileMessage)
+def handle_file(event):
+    sender = get_sender_name(event)
+    if sender in HARD_BOT_SENDERS:
+        return
+    fname = getattr(event.message, "file_name", None) or event.message.id
+    try:
+        content = line_bot_api.get_message_content(event.message.id)
+        data    = b"".join(content.iter_content())
+        filename = "files/" + str(event.message.id) + "_" + str(fname)
+        url = upload_file(data, filename, "application/octet-stream")
+    except Exception as e:
+        print("檔案上傳失敗：", e, flush=True)
+        url = ""
+    save_message("[檔案] " + str(fname), sender, file_url=url, file_type="file")
+
+
 # ──────────────────────────────────────────────
 # 整理QA 背景分析
 # ──────────────────────────────────────────────
