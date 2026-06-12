@@ -1531,7 +1531,7 @@ function deleteTagChip(btn){
       showDragLog('標籤「'+tag+'」已刪除');
       loadGroups();
     } else if(d.in_use_count){
-      alert('無法刪除「'+tag+'」\n此標籤目前被 '+d.in_use_count+' 筆 QA 使用中。\n請先在查詢介面移除相關 QA 的標籤，再進行刪除。');
+      alert('無法刪除「'+tag+'」\\n此標籤目前被 '+d.in_use_count+' 筆 QA 使用中。\\n請先在查詢介面移除相關 QA 的標籤，再進行刪除。');
     } else {
       alert('刪除失敗：'+(d.error||'未知錯誤'));
     }
