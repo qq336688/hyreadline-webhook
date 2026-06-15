@@ -636,7 +636,7 @@ function renderResults(d,kw){
   if(totalPages>1){
     html+='<div class="pager">';
     if(page>1)html+='<button class="pg-btn" onclick="_doSearch('+(page-1)+')">&#8592; 上一頁</button>';
-    var start=Math.max(1,page-3),end=Math.min(totalPages,page+3);
+    var start=Math.max(1,page-10),end=Math.min(totalPages,page+9);
     for(var p=start;p<=end;p++){
       if(p===page)html+='<button class="pg-btn pg-cur">'+p+'</button>';
       else html+='<button class="pg-btn" onclick="_doSearch('+p+')">'+p+'</button>';
