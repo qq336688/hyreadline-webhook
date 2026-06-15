@@ -314,7 +314,7 @@ function renderDragBoard(){
     col.dataset.grp=grpName;
     var hdr='<div class="col-hdr" draggable="true" data-grp="'+escAttrG(grpName)+'" style="padding:7px 10px;background:#f0f0f0;border-bottom:0.5px solid #e0e0e0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;cursor:grab;">'
       +'<span style="font-size:10px;color:#bbb;margin-right:1px;">&#8942;</span>'
-      +'<span style="font-size:13px;font-weight:500;flex:1;min-width:0;word-break:break-all;white-space:normal;">'+escHtmlG(grpName)+'</span>'
+      +'<span style="font-size:13px;font-weight:500;flex:1;min-width:0;overflow-wrap:break-word;white-space:normal;">'+escHtmlG(grpName)+'</span>'
       +'<span style="font-size:10px;background:#e8f5e9;color:#1b5e20;padding:1px 6px;border-radius:9px;">'+tags.length+'</span>'
       +'<button class="col-act" data-act="rename" data-n="'+escAttrG(grpName)+'" style="font-size:10px;padding:1px 5px;cursor:pointer;">改名</button>'
       +(grpName!=='未分群'?'<button class="col-act" data-act="merge" data-n="'+escAttrG(grpName)+'" style="font-size:10px;padding:1px 5px;cursor:pointer;">合併</button>':'')
@@ -376,7 +376,7 @@ function renderDragBoard(){
         e.dataTransfer.effectAllowed='move';
         setTimeout(function(){chip.style.opacity='0.35';},0);
       });
-      chip.addEventListener('dragend',function(){this.style.opacity='';});
+      chip.addEventListener('dragend',function(){this.style.opacity='';dragState={};});
     });
   });
 }
