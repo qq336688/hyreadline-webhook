@@ -590,7 +590,7 @@ function parseBatchCSV(){
     var iTag=col(header,['標籤']);
     var iCnt=col(header,['QA數量','QA數']);
     var iRen=col(header,['標籤更名','更名後']);
-    var iDel=col(header,['刪除']);
+    var iDel=col(header,['刪除(Y)','刪除']);
     var iGRen=col(header,['群組更名']);
     if(iTag<0){alert('找不到「標籤」欄位，請確認 CSV 格式');return;}
 
