@@ -367,6 +367,13 @@ function renderDragBoard(){
     zoneEl.addEventListener('drop',function(e){
       e.preventDefault();this.style.background='';
       var toGrp=this.dataset.grp;
+      // 欄位拖曳模式：整個欄位都接受重排 drop（不限於 header）
+      if(colDragSrc&&colDragSrc!==toGrp){
+        var cur=Array.from(document.querySelectorAll('#dragBoard > [data-grp]')).map(function(c){return c.dataset.grp;});
+        var from=cur.indexOf(colDragSrc),to=cur.indexOf(toGrp);
+        if(from>=0&&to>=0){cur.splice(from,1);cur.splice(to,0,colDragSrc);customGroupOrder=cur;renderDragBoard();}
+        return;
+      }
       if(!dragState.tag||dragState.fromGroup===toGrp)return;
       moveTagDrag(dragState.tag,dragState.fromGroup,toGrp);
     });
