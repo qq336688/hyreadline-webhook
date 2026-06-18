@@ -243,7 +243,12 @@ def qa_page():
     style="margin-left:auto;background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.4);color:#fff;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">
     ✏️ 編輯標籤
   </button>''' if perm_tags else '<span style="margin-left:auto"></span>'
-    return render_template('qa.html', admin_btn=admin_btn, user_label=user_label, edit_tag_btn=edit_tag_btn)
+    try:
+        lr = supabase.table('qa_results').select('analyzed_at').order('analyzed_at', desc=True).limit(1).execute()
+        last_updated = lr.data[0]['analyzed_at'] if lr.data else ''
+    except Exception:
+        last_updated = ''
+    return render_template('qa.html', admin_btn=admin_btn, user_label=user_label, edit_tag_btn=edit_tag_btn, last_updated=last_updated)
 
 # ──────────────────────────────────────────────
 # Q&A API
