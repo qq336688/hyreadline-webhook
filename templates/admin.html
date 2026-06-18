@@ -228,7 +228,7 @@ tr:hover td{background:#fafafa}
       <div class="card-title">📤 批次更新標籤／群組</div>
       <div style="font-size:12px;color:#666;margin-bottom:10px;line-height:1.7;">
         步驟：<strong>①</strong> 點「📥 匯出標籤」下載 CSV　<strong>②</strong> 在 Excel 填入操作欄　<strong>③</strong> 存成 CSV 上傳
-        <br>欄位說明：<code>群組</code> <code>標籤</code> <code>QA數量</code> <code>標籤更名</code>（填新名）<code>刪除(Y)</code>（填 Y）<code>群組更名</code>（填新群組名）
+        <br>欄位說明：<code>群組</code> <code>標籤</code> <code>QA數量</code> <code>標籤更名</code>（填新名）<code>刪除(Y)</code>（填 Y）<code>群組更名</code>（整組改名）<code>移至群組</code>（單一標籤換群組）
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
         <input type="file" id="batchCsvFile" accept=".csv" style="font-size:12px;flex:1;">
@@ -547,9 +547,9 @@ function exportTagsCSV(btn){
     btn.disabled=false;btn.textContent='📥 匯出標籤';
     if(d.error){alert('錯誤：'+d.error);return;}
     var rows=d.rows||[];
-    var csv='\uFEFF群組,標籤,QA數量,標籤更名,刪除(Y),群組更名\n';
+    var csv='\uFEFF群組,標籤,QA數量,標籤更名,刪除(Y),群組更名,移至群組\n';
     rows.forEach(function(r){
-      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+',,,\n';
+      csv+='"'+(r.group||'').replace(/"/g,'""')+'","'+(r.tag||'').replace(/"/g,'""')+'",'+r.count+',,,,\n';
     });
     var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     var url=URL.createObjectURL(blob);
@@ -599,6 +599,7 @@ function parseBatchCSV(){
     var iRen=col(header,['標籤更名','更名後']);
     var iDel=col(header,['刪除(Y)','刪除']);
     var iGRen=col(header,['群組更名']);
+    var iMoveGrp=col(header,['移至群組']);
     if(iTag<0){alert('找不到「標籤」欄位，請確認 CSV 格式');return;}
 
     var tagOps=[],groupOps=[],seenGrpRename={};
@@ -612,24 +613,31 @@ function parseBatchCSV(){
       var ren=(iRen>=0&&cols[iRen])||'';
       var del=(iDel>=0&&cols[iDel])||'';
       var gren=(iGRen>=0&&cols[iGRen])||'';
+      var moveGrp=(iMoveGrp>=0&&cols[iMoveGrp])||'';
       if(!tag) continue;
 
-      // 群組更名（每個群組只處理一次）
+      // 群組更名（每個群組只處理一次，影響整個群組）
       if(grp&&gren&&grp!==gren&&!seenGrpRename[grp]){
         seenGrpRename[grp]=true;
         groupOps.push({group:grp,rename_to:gren});
         previewRows.push({grp:grp,tag:'（整個群組）',cnt:'',op:'群組改名 → '+gren,color:'#e8eaf6'});
       }
 
-      var hasOp=ren||del.toUpperCase()==='Y';
+      var hasOp=ren||del.toUpperCase()==='Y'||moveGrp;
       if(!hasOp) continue;
 
       if(del.toUpperCase()==='Y'){
         tagOps.push({tag:tag,delete:true});
         previewRows.push({grp:grp,tag:tag,cnt:cnt,op:'🗑 刪除',color:'#ffebee'});
       } else if(ren){
-        tagOps.push({tag:tag,rename_to:ren,delete:false});
-        previewRows.push({grp:grp,tag:tag,cnt:cnt,op:'✏️ 改名/合併 → '+ren,color:'#e8f5e9'});
+        var op={tag:tag,rename_to:ren,delete:false};
+        if(moveGrp) op.new_group=moveGrp;
+        tagOps.push(op);
+        var opLabel='✏️ 改名/合併 → '+ren+(moveGrp?' ＋移至群組：'+moveGrp:'');
+        previewRows.push({grp:grp,tag:tag,cnt:cnt,op:opLabel,color:'#e8f5e9'});
+      } else if(moveGrp){
+        tagOps.push({tag:tag,new_group:moveGrp});
+        previewRows.push({grp:grp,tag:tag,cnt:cnt,op:'📂 移至群組 → '+moveGrp,color:'#fff8e1'});
       }
     }
 
@@ -1154,16 +1162,4 @@ loadWords();
 (function(){
   fetch('/admin/api/me').then(function(r){return r.json();}).then(function(p){
     var uEl=document.getElementById('adminUsername');if(uEl)(uEl.textContent=p.display_name||p.username||'')
-    var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',groupmgr:'groups'};
-    Object.keys(map).forEach(function(tabName){
-      var permKey='perm_'+map[tabName];
-      if(p[permKey]===false){
-        var tabEl=document.querySelector('.tab[data-tab="'+tabName+'"]');
-        var panelEl=document.getElementById('tab-'+tabName);
-        if(tabEl) tabEl.style.display='none';
-        if(panelEl) panelEl.style.display='none';
-      }
-    });
-  }).catch(function(){});
-})();
-</script></body></html>
+    var map={filter:'filter',ca
