@@ -1,3 +1,7 @@
+https://raw.githubusercontent.com/qq336688/hyreadline-webhook/main/templates/admin.html
+→ https://raw.githubusercontent.com/qq336688/hyreadline-webhook/main/templates/admin.html
+Content-Type: text/plain; charset=utf-8
+
 <!DOCTYPE html>
 <html lang="zh-TW"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -119,7 +123,7 @@ tr:hover td{background:#fafafa}
   </div>
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">🔄 補跑解析舊資料</div>
-    <div style="font-size:12px;color:#777;margin-bottom:10px">將已整理的批次資料重新解析存入 qa_items，讓查詢頁面可以搜尋。第一次部署或有新批次時點此執行。</div>
+    <div style="font-size:12px;color:#777;margin-bottom:10px">將 qa_results 的批次資料重新拆分存入 qa_items（查詢頁面顯示的每一筆 Q&amp;A 來自這裡）。<br>⚠️ 使用 Colab 腳本跑 QA 時<b>不需要</b>點此（Colab 已直接寫入 qa_items）。<br>只有使用 LINE Bot「整理QA」指令後，才需要點此更新查詢頁面。</div>
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn-green" onclick="reparse()">▶ 立即補跑解析</button>
       <span id="reparseMsg" style="font-size:12px;color:#2e7d32"></span>
@@ -235,7 +239,7 @@ tr:hover td{background:#fafafa}
       <div class="card-title">📤 批次更新標籤／群組</div>
       <div style="font-size:12px;color:#666;margin-bottom:10px;line-height:1.7;">
         步驟：<strong>①</strong> 點「📥 匯出標籤」下載 CSV　<strong>②</strong> 在 Excel 填入操作欄　<strong>③</strong> 存成 CSV 上傳
-        <br>欄位說明：<code>A 群組</code> <code>B 標籤</code> <code>C QA數量</code> <code>D 標籤更名</code>（填新名）<code>E 刪除(Y)</code>（填 Y）<code>F 群組更名</code>（整組改名，同群組全部標籤一起改）<code>G 移至群組</code>（只移動這一筆標籤的群組）
+        <br>欄位說明：<code>群組</code> <code>標籤</code> <code>QA數量</code> <code>標籤更名</code>（填新名）<code>刪除(Y)</code>（填 Y）<code>群組更名</code>（整組改名）<code>移至群組</code>（單一標籤換群組）
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
         <input type="file" id="batchCsvFile" accept=".csv" style="font-size:12px;flex:1;">
@@ -1164,4 +1168,43 @@ function loadTokens(){
     });
     document.getElementById('tokenChart').innerHTML=dHtml||'<div style="color:#aaa;font-size:13px">無資料</div>';
 
-    /
+    /* 近期記錄 */
+    var rHtml='<table><thead><tr><th>時間</th><th>批次</th><th>輸入</th><th>輸出</th><th>總計</th></tr></thead><tbody>';
+    (d.recent||[]).forEach(function(r){
+      rHtml+='<tr><td>'+esc(r.analyzed_at||'')+'</td><td>'+esc(r.title||'')+'</td>'
+        +'<td>'+((r.input_tokens||0)).toLocaleString()+'</td>'
+        +'<td>'+((r.output_tokens||0)).toLocaleString()+'</td>'
+        +'<td><b>'+((r.total_tokens||0)).toLocaleString()+'</b></td></tr>';
+    });
+    rHtml+='</tbody></table>';
+    document.getElementById('tokenRecent').innerHTML=rHtml;
+
+    /* 警告提示 */
+    if(d.today_total>=d.warning_threshold){
+      document.getElementById('tokenWarn').innerHTML='<div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:12px 16px;color:#c62828;font-size:13px;margin-bottom:12px">⚠️ 今日 token 用量已超過 80% 上限（'+d.today_total.toLocaleString()+' / 1,000,000），系統將自動暫停分析。</div>';
+    } else {
+      document.getElementById('tokenWarn').innerHTML='';
+    }
+  });
+}
+
+/* ── 工具 ── */
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escQ(t){return(t||'').replace(/'/g,'\'').replace(/"/g,'&quot;')}
+function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
+function showMsg(id,msg,isErr){var el=document.getElementById(id);el.className='msg'+(isErr?' err':'');el.textContent=msg;setTimeout(function(){el.textContent=''},3000)}
+
+/* 預設載入 */
+loadWords();
+/* 依目前登入者的後台權限隱藏無存取權的分頁 */
+(function(){
+  fetch('/admin/api/me').then(function(r){return r.json();}).then(function(p){
+    var uEl=document.getElementById('adminUsername');if(uEl)(uEl.textContent=p.display_name||p.username||'')
+    var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',groups:'groupmgr'};
+    Object.keys(map).forEach(function(k){
+      var t=document.querySelector('.tab[data-tab=+map[k]+]');
+      if(p['perm_'+k]===false&&t)t.style.display='none';
+    });
+  });
+})();
+</script>
