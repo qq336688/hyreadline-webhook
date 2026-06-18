@@ -1162,4 +1162,13 @@ loadWords();
 (function(){
   fetch('/admin/api/me').then(function(r){return r.json();}).then(function(p){
     var uEl=document.getElementById('adminUsername');if(uEl)(uEl.textContent=p.display_name||p.username||'')
-    var map={filter:'filter',ca
+    var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',groups:'groupmgr'};
+    Object.keys(map).forEach(function(k){
+      var hasP=p['perm_'+k]!==false;
+      if(!hasP){var tabEl=document.querySelector('.tab[data-tab="'+map[k]+'"]');if(tabEl)tabEl.style.display='none';}
+    });
+  });
+})();
+</script>
+</body>
+</html>
