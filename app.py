@@ -1195,6 +1195,28 @@ def get_stats():
                 cat_stats[c] = cat_stats.get(c, 0) + 1
     return jsonify({"year_stats": year_stats, "category_stats": cat_stats})
 
+@app.route("/admin/api/last_run_info", methods=["GET"])
+@require_admin
+def get_last_run_info():
+    r = supabase.table("qa_results").select("id,analyzed_at,title,total_msgs").order("analyzed_at", desc=True).limit(1).execute()
+    if not r.data:
+        return jsonify({"last_run": None, "total_qa_items": 0})
+    last = r.data[0]
+    batch_id = last.get("id")
+    cnt = supabase.table("qa_items").select("id", count="exact").eq("batch_id", batch_id).execute()
+    qa_count = cnt.count if cnt.count is not None else 0
+    total = supabase.table("qa_items").select("id", count="exact").execute()
+    total_count = total.count if total.count is not None else 0
+    return jsonify({
+        "last_run": {
+            "analyzed_at": last.get("analyzed_at"),
+            "title": last.get("title"),
+            "total_msgs": last.get("total_msgs") or 0,
+            "qa_count": qa_count,
+        },
+        "total_qa_items": total_count
+    })
+
 @app.route("/admin/api/qa_year_count", methods=["GET"])
 @require_admin
 def get_qa_year_count():
