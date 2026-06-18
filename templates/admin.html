@@ -143,8 +143,8 @@ tr:hover td{background:#fafafa}
       </div>
     </div>
     <table>
-      <thead><tr><th style="width:40px">ID</th><th>帳號</th><th>顯示名稱</th><th style="width:80px;text-align:center">查詢模組</th><th style="text-align:center">後台權限</th><th style="width:60px">狀態</th><th style="width:80px">操作</th></tr></thead>
-      <tbody id="userTableBody"><tr><td colspan="7" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
+      <thead><tr><th style="width:40px">ID</th><th>帳號</th><th>顯示名稱</th><th style="width:80px;text-align:center">查詢模組</th><th style="text-align:center">後台權限</th><th style="width:60px">狀態</th><th style="width:110px">最近到訪</th><th style="width:60px;text-align:center">到訪次數</th><th style="width:80px">操作</th></tr></thead>
+      <tbody id="userTableBody"><tr><td colspan="9" style="color:#aaa;text-align:center;padding:20px">載入中...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -981,6 +981,8 @@ function loadUsers(){
           permChips+='<span style="font-size:10px;padding:1px 5px;border-radius:3px;margin:1px;display:inline-block;background:'+(on?'#e3f2fd':'#f5f5f5')+';color:'+(on?'#1565c0':'#bbb')+'">'+pMap[k]+'</span>';
         });
       } else { permChips='<span style="color:#bbb;font-size:11px">—</span>'; }
+      var lastVisit=u.last_visit?'<span style="font-size:12px">'+esc(u.last_visit)+'</span>':'<span style="color:#ccc">—</span>';
+      var visitCnt=u.visit_count?'<span style="font-weight:500">'+u.visit_count+'</span>':'<span style="color:#ccc">0</span>';
       html+='<tr>'
         +'<td style="color:#aaa">'+u.id+'</td>'
         +'<td style="font-weight:500">'+esc(u.username)+'</td>'
@@ -988,6 +990,8 @@ function loadUsers(){
         +'<td style="text-align:center;font-size:15px">'+qBadge+'</td>'
         +'<td style="text-align:center;line-height:1.6">'+permChips+'</td>'
         +'<td>'+statusBadge+'</td>'
+        +'<td>'+lastVisit+'</td>'
+        +'<td style="text-align:center">'+visitCnt+'</td>'
         +'<td><button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="編輯" onclick="openEditModal('+u.id+')">✏️</button>'
         +'<button style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px" title="刪除" onclick="delUser('+u.id+')">🗑</button></td></tr>';
     });
