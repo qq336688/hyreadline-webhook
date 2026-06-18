@@ -111,6 +111,13 @@ tr:hover td{background:#fafafa}
 <!-- 分析總覽 -->
 <div class="panel" id="tab-stats">
   <div class="card" style="margin-bottom:14px">
+    <div class="card-title" style="justify-content:space-between">
+      <span>📌 最後分析紀錄</span>
+      <button class="btn-outline" onclick="loadLastRunInfo()" style="font-size:11px;padding:3px 10px">🔄 更新</button>
+    </div>
+    <div id="lastRunInfoArea" style="font-size:13px;color:#555;">載入中...</div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
     <div class="card-title">🔄 補跑解析舊資料</div>
     <div style="font-size:12px;color:#777;margin-bottom:10px">將已整理的批次資料重新解析存入 qa_items，讓查詢頁面可以搜尋。第一次部署或有新批次時點此執行。</div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -800,7 +807,7 @@ function showTab(el,name){
   document.getElementById('tab-'+name).classList.add('active');
   if(name==='filter')loadWords();
   if(name==='category')loadCategories();
-  if(name==='stats'){loadStats();loadQaYearCount();}
+  if(name==='stats'){loadStats();loadQaYearCount();loadLastRunInfo();}
   if(name==='token')loadTokens();
   if(name==='users')loadUsers();
   if(name==='groupmgr')loadGroups();
@@ -905,6 +912,33 @@ function reparse(){
     btn.disabled=false;btn.textContent='▶ 立即補跑解析';
     document.getElementById('reparseMsg').style.color='#e53935';
     document.getElementById('reparseMsg').textContent='連線失敗，請稍後再試';
+  });
+}
+
+/* ── 最後分析紀錄 ── */
+function loadLastRunInfo(){
+  fetch('/admin/api/last_run_info').then(function(r){return r.json()}).then(function(d){
+    var el=document.getElementById('lastRunInfoArea');
+    if(!d.last_run){el.textContent='尚無分析紀錄';return;}
+    var lr=d.last_run;
+    el.innerHTML=
+      '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:6px">'
+      +'<div style="background:#f0f9f0;border-radius:8px;padding:10px 18px;text-align:center;min-width:100px">'
+      +'<div style="font-size:22px;font-weight:600;color:#2e7d32">'+d.total_qa_items+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-top:2px">QA 總筆數</div></div>'
+      +'<div style="background:#f5f5f5;border-radius:8px;padding:10px 18px;text-align:center;min-width:100px">'
+      +'<div style="font-size:22px;font-weight:600;color:#1565c0">'+lr.qa_count+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-top:2px">上次新增 QA</div></div>'
+      +'<div style="background:#f5f5f5;border-radius:8px;padding:10px 18px;text-align:center;min-width:100px">'
+      +'<div style="font-size:22px;font-weight:600;color:#555">'+lr.total_msgs+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-top:2px">上次處理訊息</div></div>'
+      +'<div style="display:flex;flex-direction:column;justify-content:center;gap:4px">'
+      +'<div style="font-size:12px;color:#777">📅 上次分析時間</div>'
+      +'<div style="font-size:14px;font-weight:500;color:#333">'+lr.analyzed_at+'</div>'
+      +'<div style="font-size:11px;color:#aaa;margin-top:2px">'+lr.title+'</div>'
+      +'</div></div>';
+  }).catch(function(){
+    document.getElementById('lastRunInfoArea').textContent='載入失敗';
   });
 }
 
