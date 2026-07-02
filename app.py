@@ -1681,9 +1681,12 @@ def fetch_new_messages(limit=50):
         if len(r.data) < 1000:
             break
         offset += 1000
-    if rows:
-        set_setting("last_analyzed_date", rows[-1]["created_at"])
-    return rows[:limit]
+    result = rows[:limit]
+    # 只把 cursor 前進到「這次實際回傳、會被送去分析」的最後一筆時間，
+    # 避免抓到的新訊息數超過 limit 時，多出來的訊息被跳過、永遠不會被分析到。
+    if result:
+        set_setting("last_analyzed_date", result[-1]["created_at"])
+    return result
 
 
 def fetch_messages_by_year(year):
