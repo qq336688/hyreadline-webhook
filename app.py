@@ -348,6 +348,7 @@ def qa_search():
         source_text_fallback = False
 
         def build_query(base, kw, use_source):
+            base = base.eq("hidden", False)  # 前台一律排除已隱藏 QA（2026/07/02 新增 QA 管理功能）
             if kw:
                 if use_source:
                     f = "q_text.ilike.%" + kw + "%,a_text.ilike.%" + kw + "%,source_text.ilike.%" + kw + "%"
@@ -1244,6 +1245,60 @@ def get_qa_year_count():
         ]
         return jsonify({"ok": True, "rows": result, "total": total})
     except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+# ──────────────────────────────────────────────
+# 管理 API — QA 管理（隱藏/顯示，2026/07/02 新增）
+# ──────────────────────────────────────────────
+@app.route("/admin/api/qa_manage/search", methods=["GET"])
+@require_admin
+def qa_manage_search():
+    """QA 管理：搜尋所有 QA（含已隱藏），供勾選隱藏/取消隱藏使用"""
+    keyword = (request.args.get("keyword") or "").strip()
+    year = (request.args.get("year") or "").strip()
+    status = (request.args.get("status") or "all").strip()  # all / visible / hidden
+    page = int(request.args.get("page", 1))
+    page_size = 50
+    try:
+        def build(base):
+            if keyword:
+                f = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
+                base = base.or_(f)
+            if year:
+                base = base.eq("year", year)
+            if status == "visible":
+                base = base.eq("hidden", False)
+            elif status == "hidden":
+                base = base.eq("hidden", True)
+            return base
+
+        count_res = build(supabase.table("qa_items").select("id", count="exact")).execute()
+        total = count_res.count or 0
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+
+        rows = build(supabase.table("qa_items").select("id,year,batch_num,q_text,a_text,tags,hidden")) \
+            .order("id", desc=True).range(start, start + page_size - 1).execute().data
+        return jsonify({"ok": True, "results": rows, "total": total, "page": page, "total_pages": total_pages})
+    except Exception as e:
+        print("qa_manage_search 失敗：", e, flush=True)
+        return jsonify({"ok": False, "error": str(e), "results": [], "total": 0})
+
+@app.route("/admin/api/qa_manage/toggle", methods=["POST"])
+@require_admin
+def qa_manage_toggle():
+    """QA 管理：切換單筆 qa_items 的隱藏狀態（隱藏後前台 /qa 查詢不會出現）"""
+    data = request.get_json() or {}
+    item_id = data.get("id")
+    hidden = bool(data.get("hidden"))
+    if not item_id:
+        return jsonify({"ok": False, "error": "missing id"}), 400
+    try:
+        supabase.table("qa_items").update({"hidden": hidden}).eq("id", item_id).execute()
+        return jsonify({"ok": True, "id": item_id, "hidden": hidden})
+    except Exception as e:
+        print("qa_manage_toggle 失敗：", e, flush=True)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 # ──────────────────────────────────────────────
