@@ -1565,7 +1565,8 @@ def handle_file(event):
 def run_analysis(year, group_id):
     try:
         tag_rows  = supabase.table("tag_groups").select("tag_name").execute().data
-        tag_vocab = list({r["tag_name"] for r in tag_rows if r.get("tag_name")})
+        tag_vocab = list({r["tag_name"] for r in tag_rows
+                           if r.get("tag_name") and not r["tag_name"].startswith("__def__:")})
         tag_hint  = "、".join(tag_vocab[:1500]) if tag_vocab else ""
 
         if year:
