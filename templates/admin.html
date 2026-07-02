@@ -66,6 +66,7 @@ tr:hover td{background:#fafafa}
   <div class="tab" data-tab="token" onclick="showTab(this,'token')">⚡ Token 用量</div>
   <div class="tab" data-tab="users" onclick="showTab(this,'users')">👤 帳號管理</div>
   <div class="tab" data-tab="groupmgr" onclick="showTab(this,'groupmgr')">🗂️ 標籤群組管理</div>
+  <div class="tab" data-tab="qamanage" onclick="showTab(this,'qamanage')">🙈 QA 管理</div>
 </div>
 
 <!-- 過濾詞句 -->
@@ -799,6 +800,35 @@ function deleteGroup(name){
   </div>
 </div>
 
+<!-- QA 管理（隱藏/顯示，2026/07/02 新增） -->
+<div class="panel" id="tab-qamanage">
+  <div class="card">
+    <div class="card-title">🙈 QA 顯示管理</div>
+    <div style="font-size:12px;color:#777;margin-bottom:10px">找到不適合出現在客服查詢頁面的 QA（例如內部行政訊息被誤判），點「隱藏」即可讓它從 /qa 查詢結果消失；不會刪除資料，隨時可以取消隱藏。</div>
+    <div class="add-row">
+      <input type="text" id="qaMgrKeyword" placeholder="輸入關鍵字搜尋問題/回答..." style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter')searchQaManage(1)">
+      <select id="qaMgrYear">
+        <option value="">全部年份</option>
+        <option>2019</option><option>2020</option><option>2021</option>
+        <option>2022</option><option>2023</option><option>2024</option>
+        <option>2025</option><option>2026</option>
+      </select>
+      <select id="qaMgrStatus">
+        <option value="all">全部狀態</option>
+        <option value="visible">僅顯示中</option>
+        <option value="hidden">僅已隱藏</option>
+      </select>
+      <button class="btn-green" onclick="searchQaManage(1)">🔍 搜尋</button>
+    </div>
+    <div id="qaMgrMsg" style="font-size:12px;color:#aaa;margin-bottom:8px">請輸入關鍵字或選擇篩選條件後搜尋（不輸入關鍵字則列出最新資料）</div>
+    <table>
+      <thead><tr><th style="width:60px">ID</th><th style="width:60px">年份</th><th>問題</th><th>回答</th><th style="width:70px">狀態</th><th style="width:80px">操作</th></tr></thead>
+      <tbody id="qaMgrTable"><tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">請先搜尋</td></tr></tbody>
+    </table>
+    <div id="qaMgrPager" style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12px;color:#777"></div>
+  </div>
+</div>
+
 <script>
 function showTab(el,name){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
@@ -811,6 +841,7 @@ function showTab(el,name){
   if(name==='token')loadTokens();
   if(name==='users')loadUsers();
   if(name==='groupmgr')loadGroups();
+  if(name==='qamanage')searchQaManage(1);
 }
 
 /* ── 過濾詞句 ── */
@@ -1184,6 +1215,70 @@ function loadTokens(){
   });
 }
 
+/* ── QA 管理（隱藏/顯示，2026/07/02 新增） ── */
+var qaMgrPage=1;
+function searchQaManage(page){
+  qaMgrPage=page||1;
+  var kw=document.getElementById('qaMgrKeyword').value.trim();
+  var yr=document.getElementById('qaMgrYear').value;
+  var st=document.getElementById('qaMgrStatus').value;
+  var params=new URLSearchParams({keyword:kw,year:yr,status:st,page:qaMgrPage});
+  document.getElementById('qaMgrMsg').textContent='搜尋中...';
+  fetch('/admin/api/qa_manage/search?'+params.toString()).then(function(r){return r.json()}).then(function(d){
+    if(!d.ok){
+      document.getElementById('qaMgrMsg').textContent='搜尋失敗：'+(d.error||'');
+      document.getElementById('qaMgrTable').innerHTML='<tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">搜尋失敗</td></tr>';
+      return;
+    }
+    document.getElementById('qaMgrMsg').textContent='共找到 '+d.total+' 筆（第 '+d.page+' / '+d.total_pages+' 頁）';
+    renderQaManageResults(d.results||[]);
+    renderQaManagePager(d.page,d.total_pages);
+  });
+}
+function renderQaManageResults(rows){
+  if(!rows.length){
+    document.getElementById('qaMgrTable').innerHTML='<tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">沒有符合條件的 QA</td></tr>';
+    return;
+  }
+  var html='';
+  rows.forEach(function(r){
+    var isHidden=!!r.hidden;
+    var qFull=r.q_text||'';
+    var aFull=r.a_text||'';
+    var qShort=esc(qFull.slice(0,60))+(qFull.length>60?'…':'');
+    var aShort=esc(aFull.slice(0,60))+(aFull.length>60?'…':'');
+    html+='<tr>'
+      +'<td>'+r.id+'</td>'
+      +'<td>'+esc(r.year||'')+'</td>'
+      +'<td>'+qShort+'</td>'
+      +'<td>'+aShort+'</td>'
+      +'<td>'+(isHidden?'<span style="color:#e53935">已隱藏</span>':'<span style="color:#2e7d32">顯示中</span>')+'</td>'
+      +'<td>'+(isHidden
+        ?'<button class="btn-sm" onclick="toggleQaHidden('+r.id+',false)">👁 取消隱藏</button>'
+        :'<button class="btn-sm btn-cancel" onclick="toggleQaHidden('+r.id+',true)">🙈 隱藏</button>')
+      +'</td></tr>';
+  });
+  document.getElementById('qaMgrTable').innerHTML=html;
+}
+function renderQaManagePager(page,totalPages){
+  if(totalPages<=1){document.getElementById('qaMgrPager').innerHTML='';return;}
+  var html='';
+  html+='<button class="btn-outline" '+(page<=1?'disabled':'')+' onclick="searchQaManage('+(page-1)+')">← 上一頁</button>';
+  html+='<span>第 '+page+' / '+totalPages+' 頁</span>';
+  html+='<button class="btn-outline" '+(page>=totalPages?'disabled':'')+' onclick="searchQaManage('+(page+1)+')">下一頁 →</button>';
+  document.getElementById('qaMgrPager').innerHTML=html;
+}
+function toggleQaHidden(id,hidden){
+  fetch('/admin/api/qa_manage/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,hidden:hidden})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.ok){
+        searchQaManage(qaMgrPage);
+      } else {
+        alert('操作失敗：'+(d.error||''));
+      }
+    });
+}
+
 /* ── 工具 ── */
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escQ(t){return(t||'').replace(/'/g,'\'').replace(/"/g,'&quot;')}
@@ -1198,9 +1293,12 @@ loadWords();
     var uEl=document.getElementById('adminUsername');if(uEl)(uEl.textContent=p.display_name||p.username||'')
     var map={filter:'filter',category:'category',stats:'stats',token:'token',users:'users',groups:'groupmgr'};
     Object.keys(map).forEach(function(k){
-      var t=document.querySelector('.tab[data-tab=+map[k]+]');
+      var t=document.querySelector('.tab[data-tab="'+map[k]+'"]');
       if(p['perm_'+k]===false&&t)t.style.display='none';
     });
+    /* QA 管理沿用「標籤管理」權限（perm_tags） */
+    var qaTab=document.querySelector('.tab[data-tab="qamanage"]');
+    if(p['perm_tags']===false&&qaTab)qaTab.style.display='none';
   });
 })();
 </script>
