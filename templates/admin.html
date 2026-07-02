@@ -117,9 +117,9 @@ tr:hover td{background:#fafafa}
     </div>
     <div id="lastRunInfoArea" style="font-size:13px;color:#555;">載入中...</div>
   </div>
-  <div class="card" style="margin-bottom:14px">
+  <div class="card" style="margin-bottom:14px;display:none">
     <div class="card-title">🔄 補跑解析舊資料</div>
-    <div style="font-size:12px;color:#777;margin-bottom:10px">將 qa_results 的批次資料重新拆分存入 qa_items（查詢頁面顯示的每一筆 Q&amp;A 來自這裡）。<br>⚠️ 使用 Colab 腳本跑 QA 時<b>不需要</b>點此（Colab 已直接寫入 qa_items）。<br>只有使用 LINE Bot「整理QA」指令後，才需要點此更新查詢頁面。</div>
+    <div style="font-size:12px;color:#777;margin-bottom:10px">將 qa_results 的批次資料重新拆分存入 qa_items（查詢頁面顯示的每一筆 Q&amp;A 來自這裡）。<br>⚠️ 使用 Colab 腳本跑 QA 時<b>不需要</b>點此（Colab 已直接寫入 qa_items）。<br>只有使用 LINE Bot「整理QA」指令後，才需要點此更新查詢頁面。<br>⚠️ 2026/07/02 起停用：此功能會清空 qa_items 並用不含 tags/source_text 的舊邏輯重建，「整理QA」指令現在已直接寫入 tags，不再需要補跑解析。</div>
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn-green" onclick="reparse()">▶ 立即補跑解析</button>
       <span id="reparseMsg" style="font-size:12px;color:#2e7d32"></span>
