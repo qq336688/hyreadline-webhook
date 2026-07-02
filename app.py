@@ -1260,9 +1260,15 @@ def qa_manage_search():
     page = int(request.args.get("page", 1))
     page_size = 50
     try:
-        def build(base):
+        # 兩段式搜尋：先搜 q_text+a_text，完全無結果才擴大到 source_text
+        # （原本一次比對三個欄位，source_text 是前後約200則原始訊息、最多10000字，
+        #  常見詞很容易命中 source_text 卻跟畫面顯示的 Q/A 內容無關，造成搜尋結果看起來不符）
+        def build(base, use_source):
             if keyword:
-                f = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
+                if use_source:
+                    f = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%,source_text.ilike.%" + keyword + "%"
+                else:
+                    f = "q_text.ilike.%" + keyword + "%,a_text.ilike.%" + keyword + "%"
                 base = base.or_(f)
             if year:
                 base = base.eq("year", year)
@@ -1272,15 +1278,22 @@ def qa_manage_search():
                 base = base.eq("hidden", True)
             return base
 
-        count_res = build(supabase.table("qa_items").select("id", count="exact")).execute()
+        use_source = False
+        count_res = build(supabase.table("qa_items").select("id", count="exact"), use_source).execute()
         total = count_res.count or 0
+
+        if total == 0 and keyword:
+            use_source = True
+            count_res = build(supabase.table("qa_items").select("id", count="exact"), use_source).execute()
+            total = count_res.count or 0
+
         total_pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(page, total_pages))
         start = (page - 1) * page_size
 
-        rows = build(supabase.table("qa_items").select("id,year,batch_num,q_text,a_text,tags,hidden")) \
+        rows = build(supabase.table("qa_items").select("id,year,batch_num,q_text,a_text,tags,hidden"), use_source) \
             .order("id", desc=True).range(start, start + page_size - 1).execute().data
-        return jsonify({"ok": True, "results": rows, "total": total, "page": page, "total_pages": total_pages})
+        return jsonify({"ok": True, "results": rows, "total": total, "page": page, "total_pages": total_pages, "source_text_fallback": use_source})
     except Exception as e:
         print("qa_manage_search 失敗：", e, flush=True)
         return jsonify({"ok": False, "error": str(e), "results": [], "total": 0})
