@@ -1230,7 +1230,7 @@ function searchQaManage(page){
       document.getElementById('qaMgrTable').innerHTML='<tr><td colspan="6" style="color:#aaa;text-align:center;padding:20px">搜尋失敗</td></tr>';
       return;
     }
-    document.getElementById('qaMgrMsg').textContent='共找到 '+d.total+' 筆（第 '+d.page+' / '+d.total_pages+' 頁）';
+    document.getElementById('qaMgrMsg').textContent='共找到 '+d.total+' 筆（第 '+d.page+' / '+d.total_pages+' 頁）'+(d.source_text_fallback?'（問答內容無符合，已擴大搜尋原始訊息）':'');
     renderQaManageResults(d.results||[]);
     renderQaManagePager(d.page,d.total_pages);
   });
