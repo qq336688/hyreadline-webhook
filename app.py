@@ -453,11 +453,14 @@ def qa_rename_tag():
             if len(rows) < 200:
                 break
             offset += 200
-        if exists:
+        # 迴圈寫入 qa_items.tags 時，qa_items_tags_sync trigger 可能已自動把新名稱插入 tag_groups，
+        # 不能沿用迴圈前的 exists 判斷（會撞到唯一鍵），這裡要重新查一次最新狀態
+        exists_after = supabase.table("tag_groups").select("tag_name").eq("tag_name", new_name).execute().data
+        if exists_after:
             supabase.table("tag_groups").delete().eq("tag_name", old_name).execute()
         else:
             supabase.table("tag_groups").update({"tag_name": new_name}).eq("tag_name", old_name).execute()
-        return jsonify({"ok": True, "updated": updated, "merged": bool(exists)})
+        return jsonify({"ok": True, "updated": updated, "merged": bool(exists_after)})
     except Exception as e:
         print("rename_tag 失敗：", e, flush=True)
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -497,11 +500,14 @@ def admin_rename_tag_global():
             if len(rows) < 200:
                 break
             offset += 200
-        if exists:
+        # 迴圈寫入 qa_items.tags 時，qa_items_tags_sync trigger 可能已自動把新名稱插入 tag_groups，
+        # 不能沿用迴圈前的 exists 判斷（會撞到唯一鍵），這裡要重新查一次最新狀態
+        exists_after = supabase.table('tag_groups').select('tag_name').eq('tag_name', new_name).execute().data
+        if exists_after:
             supabase.table('tag_groups').delete().eq('tag_name', old_name).execute()
         else:
             supabase.table('tag_groups').update({'tag_name': new_name}).eq('tag_name', old_name).execute()
-        return jsonify({'ok': True, 'updated': updated, 'merged': bool(exists)})
+        return jsonify({'ok': True, 'updated': updated, 'merged': bool(exists_after)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
