@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>經銷商對帳模組</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+<style>
+:root{--brand:#1a5276;--brand-d:#154360;}
+body{background:#f4f6f8;font-family:"Microsoft JhengHei",-apple-system,sans-serif;}
+.sidebar{background:var(--brand-d);min-height:100vh;width:230px;position:fixed;top:0;left:0;padding-top:16px;}
+.sidebar .brand-title{color:#fff;font-weight:700;padding:0 18px 16px;font-size:1.05rem;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:8px;}
+.sec-lbl{font-size:.67rem;color:rgba(255,255,255,.45);padding:10px 18px 3px;text-transform:uppercase;letter-spacing:.05em;}
+.nav-side{color:rgba(255,255,255,.85)!important;padding:9px 18px;display:flex;align-items:center;gap:8px;text-decoration:none;white-space:nowrap;cursor:pointer;font-size:.9rem;}
+.nav-side:hover,.nav-side.active{background:rgba(255,255,255,.15);color:#fff!important;}
+.nav-side i{width:18px;text-align:center;}
+.main{margin-left:230px;padding:22px 28px;}
+.page{display:none;}
+.page.active{display:block;}
+.page-title{font-weight:700;font-size:1.25rem;color:#222;margin-bottom:4px;}
+.page-sub{color:#777;font-size:.85rem;margin-bottom:18px;}
+.card-box{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:18px 20px;margin-bottom:16px;}
+.status-bar{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px;}
+.chip{border-radius:20px;padding:5px 14px;font-size:.8rem;font-weight:600;}
+.badge-matched{background:#d4edda;color:#155724;}
+.badge-manual{background:#fff3cd;color:#7a5c00;}
+.badge-unmatched{background:#f8d7da;color:#842029;}
+.upload-drop{border:2px dashed #b9c6d0;border-radius:10px;padding:30px;text-align:center;color:#7a8b96;background:#f8fafb;}
+.table thead th{background:#eef2f5;font-size:.78rem;color:#555;white-space:nowrap;}
+.table td{font-size:.83rem;vertical-align:middle;}
+.subtab{border-bottom:2px solid #e5e9ec;margin-bottom:16px;}
+.subtab .stbtn{border:none;background:none;padding:8px 4px;margin-right:22px;color:#888;font-weight:600;font-size:.88rem;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.subtab .stbtn.active{color:var(--brand);border-bottom-color:var(--brand);}
+.rule-block{border:1px solid #e2e6ea;border-radius:8px;padding:14px;margin-bottom:10px;}
+.sheet-row{background:#f8fafb;border:1px solid #e5e9ec;border-radius:6px;padding:10px;margin-bottom:8px;}
+.small-muted{color:#8a95a0;font-size:.78rem;}
+#loginGate{position:fixed;inset:0;background:#fff;z-index:9999;display:flex;align-items:center;justify-content:center;}
+.dr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:none;align-items:center;justify-content:center;}
+.dr-modal-overlay.show{display:flex;}
+.dr-modal-box{background:#fff;border-radius:10px;padding:22px 24px;width:420px;max-width:92vw;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+.dr-modal-box .form-label{font-size:.8rem;color:#555;margin-bottom:2px;}
+</style>
+</head>
+<body>
+
+<div id="loginGate">
+  <div class="text-center">
+    <div class="spinner-border text-primary mb-3"></div>
+    <div class="small-muted">確認登入狀態中…</div>
+  </div>
+</div>
+
+<div class="dr-modal-overlay" id="skuFormModal">
+  <div class="dr-modal-box">
+    <div class="fw-bold mb-3" id="skuFormTitle">新增料號</div>
+    <div class="mb-2">
+      <label class="form-label d-block">內部料號 <span class="text-danger">*</span></label>
+      <input class="form-control form-control-sm" id="sf_code">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">EAN <span class="small-muted">（廠商條碼，上傳對帳檔時會用來輔助自動比對）</span></label>
+      <input class="form-control form-control-sm" id="sf_ean">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">ERP順序</label>
+      <input class="form-control form-control-sm" id="sf_erp">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">料號</label>
+      <input class="form-control form-control-sm" id="sf_model">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">財報料號品名 <span class="small-muted">（多筆內部料號可共用同一值）</span></label>
+      <input class="form-control form-control-sm" id="sf_report">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">財報簡稱</label>
+      <input class="form-control form-control-sm" id="sf_report_short">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">產品定價</label>
+      <input type="number" step="any" class="form-control form-control-sm" id="sf_list_price">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">商品進貨未稅價</label>
+      <input type="number" step="any" class="form-control form-control-sm" id="sf_purchase_price">
+    </div>
+    <div class="mb-3">
+      <label class="form-label d-block">備註</label>
+      <input class="form-control form-control-sm" id="sf_note">
+    </div>
+    <div class="text-end">
+      <button class="btn btn-sm btn-outline-secondary me-2" onclick="closeSkuFormModal()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveSkuFormModal()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="dr-modal-overlay" id="mapFormModal">
+  <div class="dr-modal-box">
+    <div class="fw-bold mb-3" id="mapFormTitle">新增對應</div>
+    <div class="mb-2">
+      <label class="form-label d-block">來源經銷商 <span class="text-danger">*</span></label>
+      <select class="form-select form-select-sm" id="mf_dealer"></select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">經銷商代碼 <span class="small-muted">（可留空）</span></label>
+      <input class="form-control form-control-sm" id="mf_code">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">EAN <span class="small-muted">（可留空）</span></label>
+      <input class="form-control form-control-sm" id="mf_ean">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">商品名稱</label>
+      <input class="form-control form-control-sm" id="mf_name">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">主料號 <span class="text-danger">*</span></label>
+      <select class="form-select form-select-sm" id="mf_main"></select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">贈品料號1 <span class="small-muted">（可留空）</span></label>
+      <select class="form-select form-select-sm" id="mf_gift1"></select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">贈品料號2 <span class="small-muted">（可留空）</span></label>
+      <select class="form-select form-select-sm" id="mf_gift2"></select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">贈品料號3 <span class="small-muted">（可留空，多件式套組使用）</span></label>
+      <select class="form-select form-select-sm" id="mf_gift3"></select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label d-block">備註</label>
+      <input class="form-control form-control-sm" id="mf_note">
+    </div>
+    <div class="text-end">
+      <button class="btn btn-sm btn-outline-secondary me-2" onclick="closeMapFormModal()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveMapFormModal()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="brand-title"><i class="bi bi-diagram-3"></i> 經銷商對帳模組</div>
+  <div class="sec-lbl">日常作業</div>
+  <div class="nav-side active" data-p="upload" onclick="goP('upload')"><i class="bi bi-cloud-upload"></i>上傳比對</div>
+  <div class="nav-side" data-p="query" onclick="goP('query')"><i class="bi bi-search"></i>對帳查詢</div>
+  <div class="sec-lbl">資料維護</div>
+  <div class="nav-side" data-p="manage" onclick="goP('manage')"><i class="bi bi-gear"></i>料號與規則管理</div>
+  <div class="sec-lbl" style="margin-top:24px;">帳號</div>
+  <div class="px-3 text-white-50 small" id="curUserBox">-</div>
+  <a href="/" class="nav-side"><i class="bi bi-box-arrow-left"></i>回主系統</a>
+</div>
+
+<div class="main">
+
+  <!-- ============ 上傳比對 ============ -->
+  <div class="page active" id="page-upload">
+    <div class="page-title">上傳比對</div>
+    <div class="page-sub">上傳當月經銷商對帳檔案，系統自動判斷格式、比對內部料號</div>
+
+    <div class="card-box">
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="small-muted d-block">選擇檔案</label>
+          <input type="file" id="upFile" class="form-control form-control-sm" accept=".xlsx,.xls">
+        </div>
+        <div class="col-auto">
+          <label class="small-muted d-block">經銷商（留空自動判斷）</label>
+          <select id="upDealer" class="form-select form-select-sm"><option value="">自動判斷</option></select>
+        </div>
+        <div class="col-auto">
+          <label class="small-muted d-block">期間（如 2026/05，可稍後補）</label>
+          <input type="text" id="upPeriod" class="form-control form-control-sm" placeholder="2026/05">
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary btn-sm" onclick="doUpload()"><i class="bi bi-cloud-upload"></i> 上傳並比對</button>
+        </div>
+      </div>
+      <div id="upMsg" class="small mt-2"></div>
+    </div>
+
+    <div class="card-box">
+      <div class="fw-bold mb-2">批次列表</div>
+      <table class="table table-hover">
+        <thead><tr><th>#</th><th>經銷商</th><th>期間</th><th>來源檔名</th><th>狀態</th><th>自動/手動/未比對</th><th>操作</th></tr></thead>
+        <tbody id="batchTbody"><tr><td colspan="7" class="text-center small-muted py-3">尚無批次</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card-box" id="batchDetailBox" style="display:none;">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="fw-bold" id="batchDetailTitle">批次明細</div>
+        <div>
+          <input type="text" id="commitPeriod" class="form-control form-control-sm d-inline-block" style="width:100px" placeholder="期間 2026/05" onchange="refreshPeriodNoteFields()">
+          <input type="text" id="commitRange" class="form-control form-control-sm d-inline-block" style="width:150px" placeholder="對帳區間 如0701-0727" onchange="savePeriodNoteFromBatch('reconcile_range', this.value)">
+          <input type="text" id="commitNote" class="form-control form-control-sm d-inline-block" style="width:150px" placeholder="對帳備註" onchange="savePeriodNoteFromBatch('note', this.value)">
+          <button class="btn btn-sm btn-outline-secondary" onclick="exportBatch()"><i class="bi bi-download"></i> 匯出驗證檔</button>
+          <button class="btn btn-sm btn-primary" onclick="commitBatch()"><i class="bi bi-check2-circle"></i> 確認並入庫</button>
+        </div>
+      </div>
+      <div class="status-bar mb-3" id="batchStatusBar"></div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="mb-0"><input type="checkbox" id="lineSelAllTop" onchange="toggleAllLineSel(this.checked)"> 全選未比對項目</label>
+        <button class="btn btn-sm btn-success" onclick="batchConfirmLines()"><i class="bi bi-check2-all"></i> 批次確認</button>
+      </div>
+      <table class="table table-hover">
+        <thead><tr><th style="width:34px;"><input type="checkbox" id="lineSelAllHead" onchange="toggleAllLineSel(this.checked)"></th><th>項次</th><th>經銷商代碼</th><th>EAN</th><th>商品名稱</th><th>數量</th><th>未稅金額</th><th>含稅金額</th><th>稅額</th><th>比對狀態</th><th>比對到的內部料號</th><th>操作</th></tr></thead>
+        <tbody id="lineTbody"></tbody>
+      </table>
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <label class="mb-0"><input type="checkbox" id="lineSelAllBottom" onchange="toggleAllLineSel(this.checked)"> 全選未比對項目</label>
+        <button class="btn btn-sm btn-success" onclick="batchConfirmLines()"><i class="bi bi-check2-all"></i> 批次確認</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 對帳查詢 ============ -->
+  <div class="page" id="page-query">
+    <div class="page-title">對帳查詢</div>
+    <div class="page-sub">查詢已入庫的對帳彙總資料</div>
+
+    <div class="card-box">
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <select id="qDealer" class="form-select form-select-sm"><option value="">全部經銷商</option></select>
+        </div>
+        <div class="col-auto"><input type="text" id="qPeriod" class="form-control form-control-sm" placeholder="期間 如2026/05"></div>
+        <div class="col-auto"><input type="text" id="qCode" class="form-control form-control-sm" placeholder="內部料號關鍵字"></div>
+        <div class="col-auto">
+          <select id="qView" class="form-select form-select-sm">
+            <option value="sku">依內部料號</option>
+            <option value="report">依財報料號品名彙總</option>
+            <option value="matrix">依經銷商矩陣（各經銷銷售數）</option>
+            <option value="matrix_report">依財報品名矩陣（各經銷數量+金額）</option>
+          </select>
+        </div>
+        <div class="col-auto"><button class="btn btn-sm btn-primary" onclick="doQuery()"><i class="bi bi-search"></i> 查詢</button></div>
+      </div>
+    </div>
+
+    <div class="card-box">
+      <div class="d-flex justify-content-end mb-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportQuery()"><i class="bi bi-file-earmark-excel"></i> 匯出</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="table table-hover table-sm" id="qTable">
+          <thead id="qThead"></thead>
+          <tbody id="qTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 料號與規則管理 ============ -->
+  <div class="page" id="page-manage">
+    <div class="page-title">料號與規則管理</div>
+    <div class="page-sub">維護內部料號清單、經銷商品項對照表、經銷商格式規則</div>
+
+    <div class="subtab">
+      <button class="stbtn active" data-t="sku" onclick="goT('sku')">內部料號清單</button>
+      <button class="stbtn" data-t="map" onclick="goT('map')">經銷商品項對照表</button>
+      <button class="stbtn" data-t="rule" onclick="goT('rule')">經銷商格式規則</button>
+    </div>
+
+    <div class="tab-c active" id="tab-sku">
+      <div class="card-box">
+        <div class="d-flex justify-content-between mb-2">
+          <input class="form-control form-control-sm w-auto" id="skuKw" placeholder="搜尋內部料號/EAN…" onkeyup="if(event.key==='Enter')loadSkuList()">
+          <div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportSkuList()"><i class="bi bi-file-earmark-excel"></i> 匯出</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="downloadSkuTemplate()"><i class="bi bi-download"></i> 範本</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="toggleSkuImportBox()"><i class="bi bi-upload"></i> 批次匯入</button>
+            <button class="btn btn-sm btn-primary" onclick="openSkuForm()"><i class="bi bi-plus-lg"></i> 新增料號</button>
+          </div>
+        </div>
+        <div id="skuImportBox" class="sheet-row mb-3" style="display:none;">
+          <div class="small-muted mb-2"><i class="bi bi-info-circle"></i> 內部料號已存在於清單中時，僅會更新Excel中「有填值」的欄位（批次修改，空白欄位不覆蓋既有資料）；不存在時則新增。請先下載範本填寫。</div>
+          <div class="row g-2 align-items-end">
+            <div class="col-auto"><input type="file" id="skuImportFile" class="form-control form-control-sm" accept=".xlsx,.xls"></div>
+            <div class="col-auto"><button class="btn btn-sm btn-primary" onclick="confirmSkuImport()">確認匯入</button></div>
+            <div class="col-auto"><button class="btn btn-sm btn-outline-secondary" onclick="toggleSkuImportBox(false)">取消</button></div>
+          </div>
+          <div id="skuImportMsg" class="small mt-2"></div>
+        </div>
+        <table class="table table-hover">
+          <thead><tr><th style="width:60px;">排序</th><th>內部料號</th><th>EAN</th><th>ERP順序</th><th>料號</th><th>財報料號品名</th><th>財報簡稱</th><th>產品定價</th><th>商品進貨未稅價</th><th>備註</th><th></th></tr></thead>
+          <tbody id="skuTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tab-c" id="tab-map" style="display:none;">
+      <div class="card-box">
+        <div class="d-flex justify-content-between mb-2">
+          <input class="form-control form-control-sm w-auto" id="mapKw" placeholder="搜尋經銷商代碼/EAN/品名…" onkeyup="if(event.key==='Enter')loadMapping()">
+          <div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="downloadMappingTemplate()"><i class="bi bi-download"></i> 範本</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="toggleMappingImportBox()"><i class="bi bi-upload"></i> 批次匯入</button>
+            <button class="btn btn-sm btn-primary" onclick="openMapForm()"><i class="bi bi-plus-lg"></i> 新增對應</button>
+          </div>
+        </div>
+        <div id="mappingImportBox" class="sheet-row mb-3" style="display:none;">
+          <div class="small-muted mb-2"><i class="bi bi-info-circle"></i> 每一列都會新增一筆對應；若某列的經銷商/代碼/EAN/主料號/贈品料號皆與現有資料完全相同，會自動跳過，不會重複新增。主料號與贈品料號必須是「內部料號清單」裡已存在的料號，不存在會該列跳過（避免產生對帳查無主檔的孤兒資料）。請先下載範本填寫。</div>
+          <div class="row g-2 align-items-end">
+            <div class="col-auto">
+              <label class="small-muted d-block">預設經銷商（Excel「來源經銷商」欄留空時套用）</label>
+              <select id="mappingImportDealer" class="form-select form-select-sm"><option value="">（不預設）</option></select>
+            </div>
+            <div class="col-auto"><input type="file" id="mappingImportFile" class="form-control form-control-sm" accept=".xlsx,.xls"></div>
+            <div class="col-auto"><button class="btn btn-sm btn-primary" onclick="confirmMappingImport()">確認匯入</button></div>
+            <div class="col-auto"><button class="btn btn-sm btn-outline-secondary" onclick="toggleMappingImportBox(false)">取消</button></div>
+          </div>
+          <div id="mappingImportMsg" class="small mt-2"></div>
+        </div>
+        <table class="table table-hover">
+          <thead><tr><th>來源經銷商</th><th>經銷商代碼</th><th>EAN</th><th>商品名稱</th><th>主料號</th><th>贈品料號1</th><th>贈品料號2</th><th>贈品料號3</th><th>歧義</th><th></th></tr></thead>
+          <tbody id="mapTbody"></tbody>
+        </table>
+        <div class="small-muted mt-2"><i class="bi bi-info-circle"></i> 「歧義」代表同一經銷商代碼對到超過一種內部料號，比對時會改用品名判斷。</div>
+      </div>
+    </div>
+
+    <div class="tab-c" id="tab-rule" style="display:none;">
+      <div class="card-box">
+        <div class="d-flex justify-content-between mb-3">
+          <select id="ruleSelect" class="form-select form-select-sm w-auto" onchange="loadRuleDetail()"></select>
+          <button class="btn btn-sm btn-outline-primary" onclick="openNewRule()"><i class="bi bi-plus-lg"></i> 新增經銷商規則</button>
+        </div>
+        <div id="ruleDetailBox"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let CUR_PERMS = {};
+let CUR_BATCH_ID = null;
+let CUR_BATCH_DEALER = null;
+let SKU_CACHE = [];
+let RULES_CACHE = [];
+
+// ── 登入檢查 ──
+fetch('/api/me').then(r=>{
+  if(!r.ok){ location.href='/'; throw new Error('未登入'); }
+  return r.json();
+}).then(me=>{
+  CUR_PERMS = me.permissions || {};
+  document.getElementById('curUserBox').textContent = (me.display_name||me.username)+(me.is_admin?'（管理員）':'');
+  if(!me.is_admin && !CUR_PERMS.mod_dealer_edit){
+    document.querySelectorAll('.btn-primary, .btn-outline-primary').forEach(b=>{ if(b.onclick) b.style.display='none'; });
+  }
+  document.getElementById('loginGate').style.display='none';
+  initPage();
+}).catch(()=>{});
+
+function initPage(){
+  loadDealerOptions();
+  loadBatches();
+  loadSkuList();
+}
+
+function goP(p){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.nav-side').forEach(e=>e.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelector('.nav-side[data-p="'+p+'"]').classList.add('active');
+  if(p==='manage'){ loadSkuList(); loadMapping(); loadRules(); }
+  if(p==='query'){ }
+}
+function goT(t){
+  document.querySelectorAll('.tab-c').forEach(e=>e.style.display='none');
+  document.querySelectorAll('.stbtn').forEach(e=>e.classList.remove('active'));
+  document.getElementById('tab-'+t).style.display='block';
+  document.querySelector('.stbtn[data-t="'+t+'"]').classList.add('active');
+}
+
+const DEALER_NAMES = ['三創','富邦momo','墊腳石','親子天下'];
+function loadDealerOptions(){
+  const opts = DEALER_NAMES.map(d=>'<option value="'+d+'">'+d+'</option>').join('');
+  document.getElementById('upDealer').innerHTML = '<option value="">自動判斷</option>'+opts;
+  document.getElementById('qDealer').innerHTML = '<option value="">全部經銷商</option>'+opts;
+  document.getElementById('mappingImportDealer').innerHTML = '<option value="">（不預設）</option>'+opts;
+}
+
+// ============ 上傳比對 ============
+async function doUpload(){
+  const f = document.getElementById('upFile').files[0];
+  if(!f){ alert('請選擇檔案'); return; }
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('dealer_name', document.getElementById('upDealer').value);
+  fd.append('period', document.getElementById('upPeriod').value);
+  const msgEl = document.getElementById('upMsg');
+  msgEl.textContent = '上傳解析中…';
+  let res, j;
+  try{
+    res = await fetch('/api/dealer/upload', {method:'POST', body:fd});
+    j = await res.json();
+  }catch(e){
+    msgEl.innerHTML = '<span class="text-danger">伺服器回傳非預期格式（可能是部署中或逾時），請稍候重新整理頁面後再試一次</span>';
+    return;
+  }
+  if(!res.ok){ msgEl.innerHTML = '<span class="text-danger">'+(j.error||'上傳失敗')+'</span>'; return; }
+  msgEl.innerHTML = '<span class="text-success">解析完成：'+j.dealer_name+'，共'+j.total_lines+'筆，自動比對'+j.matched_lines+'筆，未比對'+j.unmatched_lines+'筆</span>';
+  await loadBatches();
+  openBatchDetail(j.batch_id);
+}
+
+async function loadBatches(){
+  const res = await fetch('/api/dealer/batches');
+  const rows = await res.json();
+  const tb = document.getElementById('batchTbody');
+  if(!rows.length){ tb.innerHTML = '<tr><td colspan="7" class="text-center small-muted py-3">尚無批次</td></tr>'; return; }
+  tb.innerHTML = rows.map(r=>`<tr>
+    <td>${r.id}</td><td>${r.dealer_name}</td><td>${r.period||''}</td><td>${r.source_filename||''}</td>
+    <td>${r.status}</td>
+    <td><span class="badge badge-matched">${r.matched_lines||0}</span> <span class="badge badge-manual">${r.manual_lines||0}</span> <span class="badge badge-unmatched">${r.unmatched_lines||0}</span></td>
+    <td>
+      <button class="btn btn-sm btn-link" onclick="openBatchDetail(${r.id})">檢視/確認</button>
+      ${r.status!=='已入庫'?`<button class="btn btn-sm btn-link text-danger" onclick="deleteBatch(${r.id})">刪除</button>`:''}
+    </td>
+  </tr>`).join('');
+}
+async function deleteBatch(id){
+  if(!confirm('確定刪除批次 #'+id+'？（例如重複上傳的檔案）此動作無法復原，僅未入庫的批次可以刪除。')) return;
+  const res = await fetch('/api/dealer/batches/'+id, {method:'DELETE'});
+  const j = await res.json();
+  if(!res.ok){ alert(j.error||'刪除失敗'); return; }
+  if(CUR_BATCH_ID===id){
+    CUR_BATCH_ID = null;
+    document.getElementById('batchDetailBox').style.display='none';
+  }
+  await loadBatches();
+}
+
+async function openBatchDetail(id){
+  CUR_BATCH_ID = id;
+  document.getElementById('batchDetailBox').style.display='block';
+  document.getElementById('batchDetailTitle').textContent = '批次 #'+id+' 明細';
+
+  // 抓這個批次本身的經銷商/期間，讓對帳區間/備註可以在匯入階段就直接填寫，
+  // 跟「對帳查詢」矩陣檢視共用同一份 dealer_reconcile_period_notes 資料
+  const bres = await fetch('/api/dealer/batches');
+  const brows = await bres.json();
+  const b = brows.find(x=>x.id===id);
+  CUR_BATCH_DEALER = b ? b.dealer_name : null;
+  document.getElementById('commitPeriod').value = (b && b.period) || '';
+  await refreshPeriodNoteFields();
+
+  await loadLines();
+}
+
+// 依目前的經銷商+期間，把已儲存的對帳區間/備註帶到批次明細工具列的輸入框
+async function refreshPeriodNoteFields(){
+  const period = document.getElementById('commitPeriod').value.trim();
+  const rangeEl = document.getElementById('commitRange');
+  const noteEl = document.getElementById('commitNote');
+  if(!CUR_BATCH_DEALER || !period){
+    rangeEl.value = '';
+    noteEl.value = '';
+    return;
+  }
+  try{
+    const res = await fetch('/api/dealer/period-notes?dealer_name='+encodeURIComponent(CUR_BATCH_DEALER)+'&period='+encodeURIComponent(period));
+    const j = await res.json();
+    rangeEl.value = j.reconcile_range || '';
+    noteEl.value = j.note || '';
+  }catch(e){
+    rangeEl.value = '';
+    noteEl.value = '';
+  }
+}
+
+// 批次明細工具列的對帳區間/備註輸入框改動時呼叫，需先填好期間才能儲存
+async function savePeriodNoteFromBatch(field, value){
+  const period = document.getElementById('commitPeriod').value.trim();
+  if(!CUR_BATCH_DEALER || !period){
+    alert('請先填寫期間，才能儲存對帳區間/備註');
+    return;
+  }
+  await savePeriodNote(CUR_BATCH_DEALER, period, field, value);
+}
+
+async function loadLines(){
+  // 保留使用者尚未按「確認」的下拉選單選擇（主料號+3個贈品料號），避免確認某一列後
+  // 整批重繪把其他列已選但未送出的選擇清空
+  const prevSelections = {};
+  document.querySelectorAll('#lineTbody select.line-sel').forEach(el=>{
+    if(el.value) prevSelections[el.id] = el.value;
+  });
+
+  await loadSkuList(); // 每次開啟/重新整理批次明細都先重抓最新內部料號清單，避免下拉選單漏掉剛新增的料號
+  const res = await fetch('/api/dealer/batches/'+CUR_BATCH_ID+'/lines');
+  const rows = await res.json();
+  const matched = rows.filter(r=>r.match_status==='auto_matched').length;
+  const manual = rows.filter(r=>r.match_status==='manual_confirmed').length;
+  const unmatched = rows.filter(r=>r.match_status==='unmatched').length;
+  document.getElementById('batchStatusBar').innerHTML =
+    `<span class="chip badge-matched">自動比對成功 ${matched}</span>
+     <span class="chip badge-manual">已手動確認 ${manual}</span>
+     <span class="chip badge-unmatched">未比對，待處理 ${unmatched}</span>`;
+
+  const skuCodeOpts = SKU_CACHE.map(s=>`<option value="${s.internal_code}">${s.internal_code}</option>`).join('');
+  const skuOpts = '<option value="">請選擇內部料號…</option>' + skuCodeOpts;
+  const giftOpts1 = '<option value="">贈品料號1(可留空)</option>' + skuCodeOpts;
+  const giftOpts2 = '<option value="">贈品料號2(可留空)</option>' + skuCodeOpts;
+  const giftOpts3 = '<option value="">贈品料號3(可留空)</option>' + skuCodeOpts;
+
+  document.getElementById('lineTbody').innerHTML = rows.map((r,i)=>{
+    const badgeCls = r.match_status==='auto_matched'?'badge-matched':(r.match_status==='manual_confirmed'?'badge-manual':'badge-unmatched');
+    const badgeTxt = r.match_status==='auto_matched'?'自動比對':(r.match_status==='manual_confirmed'?'手動確認':'未比對');
+    let skuCell;
+    if(r.match_status==='unmatched'){
+      // 確認列時除了主料號，也能直接選最多3個贈品料號（套組商品），選完按「確認」會一併存入
+      // 經銷商品項對照表，下次同商品即可自動比對，不需要每次都手動重選
+      skuCell = `<select class="form-select form-select-sm line-sel mb-1" id="sel-${r.id}">${skuOpts}</select>
+        <select class="form-select form-select-sm line-sel mb-1" id="selg1-${r.id}">${giftOpts1}</select>
+        <select class="form-select form-select-sm line-sel mb-1" id="selg2-${r.id}">${giftOpts2}</select>
+        <select class="form-select form-select-sm line-sel" id="selg3-${r.id}">${giftOpts3}</select>`;
+    } else {
+      const gifts = [r.matched_gift_sku1, r.matched_gift_sku2, r.matched_gift_sku3]
+        .filter(g=>g).map(g=>' + '+g).join('');
+      skuCell = r.matched_main_sku + gifts;
+    }
+    const actionCell = r.match_status==='unmatched'
+      ? `<button class="btn btn-sm btn-success" onclick="confirmLine(${r.id})">確認</button>`
+      : '-';
+    const chkCell = r.match_status==='unmatched'
+      ? `<input type="checkbox" class="linechk" data-id="${r.id}">`
+      : '';
+    return `<tr class="${r.match_status==='unmatched'?'table-warning':''}">
+      <td>${chkCell}</td>
+      <td>${i+1}</td>
+      <td>${r.dealer_code||''}</td><td>${r.ean||''}</td><td>${r.product_name||''}</td>
+      <td>${r.qty}</td><td>${r.amount_untaxed??''}</td><td>${r.amount_taxed??''}</td><td>${r.tax_amount??''}</td>
+      <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
+      <td>${skuCell}</td><td>${actionCell}</td>
+    </tr>`;
+  }).join('');
+
+  // 小計列：方便對照原始對帳檔案的合計數字是否一致
+  const sumQty = rows.reduce((s,r)=>s+(Number(r.qty)||0), 0);
+  const sumUntaxed = rows.reduce((s,r)=>s+(Number(r.amount_untaxed)||0), 0);
+  const sumTaxed = rows.reduce((s,r)=>s+(Number(r.amount_taxed)||0), 0);
+  const sumTax = rows.reduce((s,r)=>s+(Number(r.tax_amount)||0), 0);
+  document.getElementById('lineTbody').innerHTML += `<tr class="fw-bold" style="background:#eef2f5;">
+    <td colspan="5" class="text-end">小計（共${rows.length}筆）</td>
+    <td>${sumQty}</td><td>${sumUntaxed}</td><td>${sumTaxed}</td><td>${sumTax}</td>
+    <td colspan="3"></td>
+  </tr>`;
+
+  // 還原先前已選但尚未送出的下拉選單選擇
+  Object.keys(prevSelections).forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.value = prevSelections[id];
+  });
+
+  // 重繪後全選 checkbox 一律重置為未勾選，避免誤以為仍是全選狀態
+  ['lineSelAllTop','lineSelAllHead','lineSelAllBottom'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.checked = false;
+  });
+}
+
+function toggleAllLineSel(checked){
+  document.querySelectorAll('#lineTbody .linechk').forEach(el=>{ el.checked = checked; });
+  ['lineSelAllTop','lineSelAllHead','lineSelAllBottom'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.checked = checked;
+  });
+}
+
+async function batchConfirmLines(){
+  const checked = Array.from(document.querySelectorAll('#lineTbody .linechk:checked'));
+  if(checked.length===0){ alert('請先勾選要批次確認的項目'); return; }
+
+  const todo = [];
+  const skipped = [];
+  checked.forEach(chk=>{
+    const lid = chk.dataset.id;
+    const sel = document.getElementById('sel-'+lid);
+    const main_sku = sel ? sel.value : '';
+    const gift_sku1 = (document.getElementById('selg1-'+lid)||{}).value || '';
+    const gift_sku2 = (document.getElementById('selg2-'+lid)||{}).value || '';
+    const gift_sku3 = (document.getElementById('selg3-'+lid)||{}).value || '';
+    if(main_sku) todo.push({lid, main_sku, gift_sku1, gift_sku2, gift_sku3});
+    else skipped.push(lid);
+  });
+
+  if(todo.length===0){ alert('勾選的項目都尚未選擇內部料號，請先選擇後再批次確認'); return; }
+  if(skipped.length>0){
+    if(!confirm(`勾選的 ${checked.length} 筆中，有 ${skipped.length} 筆尚未選擇內部料號，將略過不處理。\n是否繼續批次確認其餘 ${todo.length} 筆？`)) return;
+  }
+
+  let ok=0, fail=0;
+  for(const item of todo){
+    try{
+      const res = await fetch('/api/dealer/lines/'+item.lid, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({main_sku:item.main_sku, gift_sku1:item.gift_sku1, gift_sku2:item.gift_sku2,
+                               gift_sku3:item.gift_sku3, save_mapping:true})
+      });
+      if(res.ok) ok++; else fail++;
+    }catch(e){ fail++; }
+  }
+
+  alert(`批次確認完成：成功 ${ok} 筆${skipped.length? '，略過(未選料號) '+skipped.length+' 筆':''}${fail? '，失敗 '+fail+' 筆':''}`);
+  await loadLines();
+  await loadBatches();
+}
+
+async function confirmLine(lid){
+  const sel = document.getElementById('sel-'+lid);
+  const main_sku = sel.value;
+  if(!main_sku){ alert('請選擇內部料號'); return; }
+  const gift_sku1 = (document.getElementById('selg1-'+lid)||{}).value || '';
+  const gift_sku2 = (document.getElementById('selg2-'+lid)||{}).value || '';
+  const gift_sku3 = (document.getElementById('selg3-'+lid)||{}).value || '';
+  let res, j;
+  try{
+    res = await fetch('/api/dealer/lines/'+lid, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({main_sku, gift_sku1, gift_sku2, gift_sku3, save_mapping:true})
+    });
+    j = res.ok ? null : await res.json();
+  }catch(e){
+    alert('伺服器回傳非預期格式（可能是部署中或逾時），請稍候重新整理頁面後再試一次');
+    return;
+  }
+  if(!res.ok){ alert((j&&j.error)||'確認失敗'); return; }
+  await loadLines();
+  await loadBatches();
+}
+
+async function commitBatch(){
+  if(!CUR_BATCH_ID) return;
+  const period = document.getElementById('commitPeriod').value.trim();
+  // 保險起見，入庫前把目前輸入框裡的對帳區間/備註再存一次（正常情況下離開欄位時onchange就會存，
+  // 這裡是避免使用者輸入完沒有觸發blur就直接點下方按鈕的極端情況）
+  if(CUR_BATCH_DEALER && period){
+    const rangeVal = document.getElementById('commitRange').value.trim();
+    const noteVal = document.getElementById('commitNote').value.trim();
+    if(rangeVal) await savePeriodNote(CUR_BATCH_DEALER, period, 'reconcile_range', rangeVal);
+    if(noteVal) await savePeriodNote(CUR_BATCH_DEALER, period, 'note', noteVal);
+  }
+  let res, j;
+  try{
+    res = await fetch('/api/dealer/batches/'+CUR_BATCH_ID+'/commit', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({period})
+    });
+    j = await res.json();
+  }catch(e){
+    alert('伺服器回傳非預期格式（可能是部署中或逾時），請稍候重新整理頁面後再試一次');
+    return;
+  }
+  if(!res.ok){
+    if(j.blocked){ alert(j.error||'已入庫，無法重複入庫'); return; }
+    if(confirm((j.error||'入庫失敗')+'\n\n是否強制入庫（未比對筆數將被略過）？')){
+      let res2, j2;
+      try{
+        res2 = await fetch('/api/dealer/batches/'+CUR_BATCH_ID+'/commit', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({period, force:true})
+        });
+        j2 = await res2.json();
+      }catch(e){
+        alert('伺服器回傳非預期格式（可能是部署中或逾時），請稍候重新整理頁面後再試一次');
+        return;
+      }
+      if(!res2.ok){ alert(j2.error||'入庫失敗'); return; }
+      alert('已入庫，共寫入'+j2.codes_written+'個料號');
+      await loadBatches();
+    }
+    return;
+  }
+  alert('已入庫，共寫入'+j.codes_written+'個料號');
+  await loadBatches();
+}
+
+function exportBatch(){
+  if(!CUR_BATCH_ID) return;
+  window.open('/api/dealer/batches/'+CUR_BATCH_ID+'/export', '_blank');
+}
+
+// ============ 對帳查詢 ============
+function exportQuery(){
+  const params = new URLSearchParams({
+    dealer: document.getElementById('qDealer').value,
+    period: document.getElementById('qPeriod').value,
+    code: document.getElementById('qCode').value,
+    view: document.getElementById('qView').value,
+  });
+  window.open('/api/dealer/summary/export?'+params.toString(), '_blank');
+}
+async function doQuery(){
+  const view = document.getElementById('qView').value;
+  const params = new URLSearchParams({
+    dealer: document.getElementById('qDealer').value,
+    period: document.getElementById('qPeriod').value,
+    code: document.getElementById('qCode').value,
+    view: view,
+  });
+  const res = await fetch('/api/dealer/summary?'+params.toString());
+  const data = await res.json();
+
+  if(view==='matrix'){ renderQueryMatrix(data); return; }
+  if(view==='matrix_report'){ renderQueryReportMatrix(data); return; }
+
+  const rows = data;
+  const sumQty = rows.reduce((s,r)=>s+(Number(r.qty)||0), 0);
+  const sumUntaxed = rows.reduce((s,r)=>s+(Number(r.amount_untaxed)||0), 0);
+  const sumTaxed = rows.reduce((s,r)=>s+(Number(r.amount_taxed)||0), 0);
+  if(view==='report'){
+    document.getElementById('qThead').innerHTML = '<tr><th>項次</th><th>財報料號品名</th><th>數量</th><th>未稅金額</th><th>含稅金額</th></tr>';
+    document.getElementById('qTbody').innerHTML = rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.report_product_name}</td><td>${r.qty}</td><td>${r.amount_untaxed??''}</td><td>${r.amount_taxed??''}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center small-muted py-3">查無資料</td></tr>';
+    if(rows.length){
+      document.getElementById('qTbody').innerHTML += `<tr class="fw-bold" style="background:#eef2f5;"><td colspan="2" class="text-end">小計（共${rows.length}筆）</td><td>${sumQty}</td><td>${sumUntaxed}</td><td>${sumTaxed}</td></tr>`;
+    }
+  } else {
+    document.getElementById('qThead').innerHTML = '<tr><th>項次</th><th>經銷商</th><th>期間</th><th>內部料號</th><th>ERP順序</th><th>數量</th><th>未稅金額</th><th>含稅金額</th></tr>';
+    document.getElementById('qTbody').innerHTML = rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.dealer_name}</td><td>${r.period}</td><td>${r.internal_code}</td><td>${r.erp_code||''}</td><td>${r.qty}</td><td>${r.amount_untaxed??''}</td><td>${r.amount_taxed??''}</td></tr>`).join('') || '<tr><td colspan="8" class="text-center small-muted py-3">查無資料</td></tr>';
+    if(rows.length){
+      document.getElementById('qTbody').innerHTML += `<tr class="fw-bold" style="background:#eef2f5;"><td colspan="5" class="text-end">小計（共${rows.length}筆）</td><td>${sumQty}</td><td>${sumUntaxed}</td><td>${sumTaxed}</td></tr>`;
+    }
+  }
+}
+
+// 依經銷商矩陣檢視：第一列表頭=ERP順序、第二列表頭=內部料號，之後每列為一個經銷商的銷售數量
+function renderQueryMatrix(data){
+  const columns = (data && data.columns) || [];
+  const dealers = (data && data.dealers) || [];
+  const thead = document.getElementById('qThead');
+  const tbody = document.getElementById('qTbody');
+
+  if(columns.length===0 || dealers.length===0){
+    thead.innerHTML = '<tr><th>經銷商</th><th>對帳月份</th><th>對帳區間</th><th>對帳備註</th></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center small-muted py-3">查無資料</td></tr>';
+    return;
+  }
+
+  // 內部料號通常是完整品名（如「Pro X殼S002A015W雅灰」），欄位很多時若不斷行整排會被撐得很寬，
+  // 這裡覆蓋掉 .table thead th 預設的 white-space:nowrap，讓長品名可以換行、欄寬控制在合理範圍。
+  // 原本只有 max-width 沒有 min-width，欄寬會被同一欄「ERP順序」的短數字（如136）壓到極窄，
+  // 導致品名被迫逐字斷行、疊成六七行難以閱讀（文字本身沒有被截斷，只是斷行斷太密），
+  // 加上 min-width 讓欄位有足夠寬度，斷行次數可以少一些、看起來更清楚
+  const wrapStyle = 'style="white-space:normal;word-break:break-all;min-width:66px;max-width:108px;font-size:.72rem;line-height:1.25;"';
+
+  const headRow1 = [
+    '<th rowspan="2">經銷商</th>',
+    '<th rowspan="2">對帳月份</th>',
+    '<th rowspan="2" style="min-width:120px;">對帳區間</th>',
+    '<th rowspan="2" style="min-width:150px;">對帳備註</th>',
+  ].concat(columns.map(c=>`<th>${c.erp_code||''}</th>`))
+   .concat(['<th rowspan="2">小計</th>']);
+  const headRow2 = columns.map(c=>`<th ${wrapStyle}>${c.internal_code}</th>`);
+  thead.innerHTML = `<tr>${headRow1.join('')}</tr><tr>${headRow2.join('')}</tr>`;
+
+  const colTotals = columns.map(()=>0);
+  const bodyRows = dealers.map(d=>{
+    let rowTotal = 0;
+    const cells = columns.map((c,i)=>{
+      const q = (d.qty_by_code && d.qty_by_code[c.internal_code]) || 0;
+      rowTotal += q;
+      colTotals[i] += q;
+      return `<td>${q||''}</td>`;
+    });
+    const dName = jsStr(d.dealer_name);
+    const dPeriod = jsStr(d.period);
+    return `<tr>
+      <td class="fw-bold text-nowrap">${d.dealer_name}</td>
+      <td class="text-nowrap">${d.period||''}</td>
+      <td><input type="text" class="form-control form-control-sm" value="${escapeAttr(d.reconcile_range||'')}"
+            placeholder="如 2026/07(0701-0727)"
+            onchange="savePeriodNote('${dName}','${dPeriod}','reconcile_range', this.value)"></td>
+      <td><input type="text" class="form-control form-control-sm" value="${escapeAttr(d.note||'')}"
+            placeholder="備註"
+            onchange="savePeriodNote('${dName}','${dPeriod}','note', this.value)"></td>
+      ${cells.join('')}<td class="fw-bold">${rowTotal}</td>
+    </tr>`;
+  });
+
+  const grandTotal = colTotals.reduce((s,v)=>s+v, 0);
+  const totalRow = `<tr class="fw-bold" style="background:#eef2f5;">
+    <td colspan="4" class="text-end">總計</td>${colTotals.map(v=>`<td>${v||''}</td>`).join('')}<td>${grandTotal}</td>
+  </tr>`;
+
+  tbody.innerHTML = bodyRows.join('') + totalRow;
+}
+
+// 依財報品名矩陣檢視：欄=財報料號品名，列=一個經銷商＋一個期間，數值=數量，
+// 每列右側附上該經銷商+期間的未稅金額小計/含稅金額小計（跨全部欄位加總的財報用金額，
+// 不逐欄拆分，避免同一個財報品名底下可能對應多個內部料號時金額拆分過度複雜）
+function renderQueryReportMatrix(data){
+  const columns = (data && data.columns) || [];
+  const dealers = (data && data.dealers) || [];
+  const thead = document.getElementById('qThead');
+  const tbody = document.getElementById('qTbody');
+
+  if(columns.length===0 || dealers.length===0){
+    thead.innerHTML = '<tr><th>經銷商</th><th>對帳月份</th><th>對帳區間</th><th>對帳備註</th></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center small-muted py-3">查無資料</td></tr>';
+    return;
+  }
+
+  const wrapStyle = 'style="white-space:normal;word-break:break-all;min-width:66px;max-width:108px;font-size:.72rem;line-height:1.25;"';
+
+  const headCells = ['<th>經銷商</th>', '<th>對帳月份</th>',
+    '<th style="min-width:120px;">對帳區間</th>', '<th style="min-width:150px;">對帳備註</th>']
+    .concat(columns.map(c=>`<th ${wrapStyle}>${c.report_product_name}</th>`))
+    .concat(['<th>未稅金額小計</th>', '<th>含稅金額小計</th>']);
+  thead.innerHTML = `<tr>${headCells.join('')}</tr>`;
+
+  const colTotals = columns.map(()=>0);
+  let totalUntaxed = 0, totalTaxed = 0;
+  const bodyRows = dealers.map(d=>{
+    const cells = columns.map((c,i)=>{
+      const q = (d.qty_by_name && d.qty_by_name[c.report_product_name]) || 0;
+      colTotals[i] += q;
+      return `<td>${q||''}</td>`;
+    });
+    totalUntaxed += d.amount_untaxed||0;
+    totalTaxed += d.amount_taxed||0;
+    const dName = jsStr(d.dealer_name);
+    const dPeriod = jsStr(d.period);
+    return `<tr>
+      <td class="fw-bold text-nowrap">${d.dealer_name}</td>
+      <td class="text-nowrap">${d.period||''}</td>
+      <td><input type="text" class="form-control form-control-sm" value="${escapeAttr(d.reconcile_range||'')}"
+            placeholder="如 2026/07(0701-0727)"
+            onchange="savePeriodNote('${dName}','${dPeriod}','reconcile_range', this.value)"></td>
+      <td><input type="text" class="form-control form-control-sm" value="${escapeAttr(d.note||'')}"
+            placeholder="備註"
+            onchange="savePeriodNote('${dName}','${dPeriod}','note', this.value)"></td>
+      ${cells.join('')}<td class="fw-bold">${d.amount_untaxed||0}</td><td class="fw-bold">${d.amount_taxed||0}</td>
+    </tr>`;
+  });
+
+  const totalRow = `<tr class="fw-bold" style="background:#eef2f5;">
+    <td colspan="4" class="text-end">總計</td>${colTotals.map(v=>`<td>${v||''}</td>`).join('')}<td>${totalUntaxed}</td><td>${totalTaxed}</td>
+  </tr>`;
+
+  tbody.innerHTML = bodyRows.join('') + totalRow;
+}
+
+function escapeAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function jsStr(s){
+  // 用於嵌入 onchange="...('...')" 這種單引號JS字串內的值，避免經銷商/期間文字剛好含單引號或反斜線時破壞語法
+  return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+async function savePeriodNote(dealerName, period, field, value){
+  try{
+    const body = {dealer_name: dealerName, period: period};
+    body[field] = value;
+    const res = await fetch('/api/dealer/period-notes', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    if(!res.ok){ const j = await res.json(); alert(j.error||'儲存失敗'); }
+  }catch(e){
+    alert('伺服器回傳非預期格式（可能是部署中或逾時），請稍候重新整理頁面後再試一次');
+  }
+}
+
+// ============ 內部料號清單 ============
+async function loadSkuList(){
+  const kw = document.getElementById('skuKw') ? document.getElementById('skuKw').value : '';
+  const res = await fetch('/api/dealer/sku-list?kw='+encodeURIComponent(kw||''));
+  SKU_CACHE = await res.json();
+  const tb = document.getElementById('skuTbody');
+  if(!tb) return;
+  tb.innerHTML = SKU_CACHE.map((s,i)=>`<tr>
+    <td class="text-nowrap">
+        <button class="btn btn-sm btn-link p-0" onclick="moveSku(${s.id},'up')"><i class="bi bi-arrow-up"></i></button>
+        <button class="btn btn-sm btn-link p-0" onclick="moveSku(${s.id},'down')"><i class="bi bi-arrow-down"></i></button>
+        <input type="number" min="1" class="form-control form-control-sm d-inline-block mt-1" style="width:56px;" value="${i+1}"
+          title="輸入數字後按Enter，直接搬移到第幾個位置"
+          onkeydown="if(event.key==='Enter'){ this.blur(); }"
+          onchange="moveSkuTo(${s.id}, this.value)">
+    </td>
+    <td>${s.internal_code}</td><td>${s.ean||''}</td><td>${s.erp_code||''}</td><td>${s.model_code||''}</td>
+    <td>${s.report_product_name||''}</td><td>${s.report_short_name||''}</td>
+    <td>${s.list_price??''}</td><td>${s.purchase_price_notax??''}</td><td>${s.note||''}</td>
+    <td><i class="bi bi-pencil" style="cursor:pointer" onclick='openSkuForm(${JSON.stringify(s)})'></i>
+        <i class="bi bi-trash text-danger ms-2" style="cursor:pointer" onclick="deleteSku(${s.id})"></i></td>
+  </tr>`).join('');
+}
+async function moveSku(id, dir){
+  await fetch('/api/dealer/sku-list/reorder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, direction:dir})});
+  loadSkuList();
+}
+async function moveSkuTo(id, posStr){
+  const pos = parseInt(posStr, 10);
+  if(!pos || pos < 1){ alert('請輸入大於0的數字'); loadSkuList(); return; }
+  if(document.getElementById('skuKw') && document.getElementById('skuKw').value.trim()){
+    if(!confirm('目前有輸入關鍵字篩選，輸入的位置是對應「全部料號」的順序，不是篩選結果的順序，確定要繼續嗎？')){ loadSkuList(); return; }
+  }
+  await fetch('/api/dealer/sku-list/reorder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, position: pos})});
+  loadSkuList();
+}
+async function deleteSku(id){
+  if(!confirm('確定刪除？')) return;
+  await fetch('/api/dealer/sku-list/'+id, {method:'DELETE'});
+  loadSkuList();
+}
+function downloadSkuTemplate(){
+  window.open('/api/dealer/sku-list/template', '_blank');
+}
+function exportSkuList(){
+  window.open('/api/dealer/sku-list/export', '_blank');
+}
+function toggleSkuImportBox(show){
+  const box = document.getElementById('skuImportBox');
+  const willShow = show !== undefined ? show : (box.style.display==='none');
+  box.style.display = willShow ? 'block' : 'none';
+  if(!willShow){
+    document.getElementById('skuImportMsg').innerHTML = '';
+    document.getElementById('skuImportFile').value = '';
+  }
+}
+async function confirmSkuImport(){
+  const f = document.getElementById('skuImportFile').files[0];
+  if(!f){ alert('請先選擇檔案'); return; }
+  const fd = new FormData();
+  fd.append('file', f);
+  const msgEl = document.getElementById('skuImportMsg');
+  msgEl.textContent = '匯入中…';
+  let res, j;
+  try{
+    res = await fetch('/api/dealer/sku-list/batch-import', {method:'POST', body:fd});
+    j = await res.json();
+  }catch(e){
+    msgEl.innerHTML = '<span class="text-danger">伺服器回傳非預期格式，請稍後再試</span>';
+    return;
+  }
+  if(!res.ok){ msgEl.innerHTML = '<span class="text-danger">'+(j.error||'匯入失敗')+'</span>'; return; }
+  msgEl.innerHTML = '<span class="text-success">匯入完成：新增 '+j.ok+' 筆、修改 '+j.updated+' 筆、略過 '+j.skip+' 筆'+(j.error?('、錯誤 '+j.error+' 筆'):'')+'</span>';
+  await loadSkuList();
+}
+// 料號表單改用單一浮層 Modal 一次顯示全部欄位（原本用多次連續 prompt() 詢問，
+// 瀏覽器在同一頁面連續彈出多個對話框時可能出現「封鎖此網頁再顯示對話方塊」，
+// 導致後面幾個 prompt() 被靜默跳過、欄位遺漏，故改為單一表單一次送出）
+let SKU_FORM_EDIT_ID = null;
+function openSkuForm(existing){
+  SKU_FORM_EDIT_ID = existing ? existing.id : null;
+  document.getElementById('skuFormTitle').textContent = existing ? '編輯料號' : '新增料號';
+  document.getElementById('sf_code').value = existing ? (existing.internal_code||'') : '';
+  document.getElementById('sf_ean').value = existing ? (existing.ean||'') : '';
+  document.getElementById('sf_erp').value = existing ? (existing.erp_code||'') : '';
+  document.getElementById('sf_model').value = existing ? (existing.model_code||'') : '';
+  document.getElementById('sf_report').value = existing ? (existing.report_product_name||'') : '';
+  document.getElementById('sf_report_short').value = existing ? (existing.report_short_name||'') : '';
+  document.getElementById('sf_list_price').value = existing && existing.list_price!=null ? existing.list_price : '';
+  document.getElementById('sf_purchase_price').value = existing && existing.purchase_price_notax!=null ? existing.purchase_price_notax : '';
+  document.getElementById('sf_note').value = existing ? (existing.note||'') : '';
+  document.getElementById('skuFormModal').classList.add('show');
+}
+function closeSkuFormModal(){
+  document.getElementById('skuFormModal').classList.remove('show');
+}
+async function saveSkuFormModal(){
+  const code = document.getElementById('sf_code').value.trim();
+  if(!code){ alert('內部料號必填'); return; }
+  const body = {
+    internal_code: code,
+    ean: document.getElementById('sf_ean').value.trim(),
+    erp_code: document.getElementById('sf_erp').value.trim(),
+    model_code: document.getElementById('sf_model').value.trim(),
+    report_product_name: document.getElementById('sf_report').value.trim(),
+    report_short_name: document.getElementById('sf_report_short').value.trim(),
+    list_price: document.getElementById('sf_list_price').value.trim(),
+    purchase_price_notax: document.getElementById('sf_purchase_price').value.trim(),
+    note: document.getElementById('sf_note').value.trim(),
+  };
+  const isEdit = !!SKU_FORM_EDIT_ID;
+  const url = isEdit ? '/api/dealer/sku-list/'+SKU_FORM_EDIT_ID : '/api/dealer/sku-list';
+  const res = await fetch(url, {method: isEdit?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const j = await res.json();
+  if(j.error){ alert(j.error); return; }
+  closeSkuFormModal();
+  loadSkuList();
+}
+
+// ============ 經銷商品項對照表 ============
+async function loadMapping(){
+  const kw = document.getElementById('mapKw') ? document.getElementById('mapKw').value : '';
+  const res = await fetch('/api/dealer/mapping?kw='+encodeURIComponent(kw||''));
+  const rows = await res.json();
+  document.getElementById('mapTbody').innerHTML = rows.map(r=>`<tr>
+    <td>${r.dealer_name}</td><td>${r.dealer_code||''}</td><td>${r.ean||''}</td><td>${r.product_name||''}</td>
+    <td>${r.main_sku}</td><td>${r.gift_sku1||''}</td><td>${r.gift_sku2||''}</td>
+    <td>${r.gift_sku3||''}</td>
+    <td>${r.is_ambiguous_code?'<span class="badge bg-warning text-dark">是</span>':''}</td>
+    <td><i class="bi bi-pencil" style="cursor:pointer" onclick='openMapForm(${JSON.stringify(r)})'></i>
+        <i class="bi bi-trash text-danger ms-2" style="cursor:pointer" onclick="deleteMap(${r.id})"></i></td>
+  </tr>`).join('') || '<tr><td colspan="10" class="text-center small-muted py-3">尚無資料</td></tr>';
+}
+async function deleteMap(id){
+  if(!confirm('確定刪除？')) return;
+  await fetch('/api/dealer/mapping/'+id, {method:'DELETE'});
+  loadMapping();
+}
+function downloadMappingTemplate(){
+  window.open('/api/dealer/mapping/template', '_blank');
+}
+function toggleMappingImportBox(show){
+  const box = document.getElementById('mappingImportBox');
+  const willShow = show !== undefined ? show : (box.style.display==='none');
+  box.style.display = willShow ? 'block' : 'none';
+  if(!willShow){
+    document.getElementById('mappingImportMsg').innerHTML = '';
+    document.getElementById('mappingImportFile').value = '';
+  }
+}
+async function confirmMappingImport(){
+  const f = document.getElementById('mappingImportFile').files[0];
+  if(!f){ alert('請先選擇檔案'); return; }
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('dealer_name', document.getElementById('mappingImportDealer').value);
+  const msgEl = document.getElementById('mappingImportMsg');
+  msgEl.textContent = '匯入中…';
+  let res, j;
+  try{
+    res = await fetch('/api/dealer/mapping/batch-import', {method:'POST', body:fd});
+    j = await res.json();
+  }catch(e){
+    msgEl.innerHTML = '<span class="text-danger">伺服器回傳非預期格式，請稍後再試</span>';
+    return;
+  }
+  if(!res.ok){ msgEl.innerHTML = '<span class="text-danger">'+(j.error||'匯入失敗')+'</span>'; return; }
+  msgEl.innerHTML = '<span class="text-success">匯入完成：新增 '+j.ok+' 筆、略過 '+j.skip+' 筆'
+    +(j.invalid_sku?('、料號不存在於內部料號清單而跳過 '+j.invalid_sku+' 筆'):'')
+    +(j.error?('、錯誤 '+j.error+' 筆'):'')+'</span>';
+  await loadMapping();
+}
+// 對應表單改用單一浮層 Modal 一次顯示全部欄位（原本用多次連續 prompt() 詢問，比照 SKU 清單表單
+// 修復前同樣的風險：瀏覽器在同一頁面連續彈出多個對話框時可能出現「封鎖此網頁再顯示對話方塊」，
+// 導致後面幾個 prompt() 被靜默跳過、欄位遺漏或存成空值——這很可能正是造成部分料號對應
+// 資料錯誤/重複的原因之一。主料號/贈品料號改用下拉選單（從內部料號清單挑選），避免手動輸入
+// 打錯字導致同一經銷商代碼對到兩個「看起來一樣其實不同」的料號，觸發不必要的歧義標記）
+let MAP_FORM_EDIT_ID = null;
+async function openMapForm(existing){
+  MAP_FORM_EDIT_ID = existing ? existing.id : null;
+  document.getElementById('mapFormTitle').textContent = existing ? '編輯對應' : '新增對應';
+
+  if(!SKU_CACHE || !SKU_CACHE.length) await loadSkuList();
+  const skuOpts = '<option value="">（無）</option>' + SKU_CACHE.map(s=>`<option value="${s.internal_code}">${s.internal_code}</option>`).join('');
+  document.getElementById('mf_main').innerHTML = skuOpts;
+  document.getElementById('mf_gift1').innerHTML = skuOpts;
+  document.getElementById('mf_gift2').innerHTML = skuOpts;
+  document.getElementById('mf_gift3').innerHTML = skuOpts;
+
+  const dealerOpts = DEALER_NAMES.map(d=>`<option value="${d}">${d}</option>`).join('');
+  document.getElementById('mf_dealer').innerHTML = dealerOpts;
+
+  document.getElementById('mf_dealer').value = existing ? (existing.dealer_name||'') : DEALER_NAMES[0];
+  document.getElementById('mf_code').value = existing ? (existing.dealer_code||'') : '';
+  document.getElementById('mf_ean').value = existing ? (existing.ean||'') : '';
+  document.getElementById('mf_name').value = existing ? (existing.product_name||'') : '';
+  document.getElementById('mf_main').value = existing ? (existing.main_sku||'') : '';
+  document.getElementById('mf_gift1').value = existing ? (existing.gift_sku1||'') : '';
+  document.getElementById('mf_gift2').value = existing ? (existing.gift_sku2||'') : '';
+  document.getElementById('mf_gift3').value = existing ? (existing.gift_sku3||'') : '';
+  document.getElementById('mf_note').value = existing ? (existing.note||'') : '';
+  document.getElementById('mapFormModal').classList.add('show');
+}
+function closeMapFormModal(){
+  document.getElementById('mapFormModal').classList.remove('show');
+}
+async function saveMapFormModal(){
+  const dealer_name = document.getElementById('mf_dealer').value;
+  const main_sku = document.getElementById('mf_main').value;
+  if(!dealer_name){ alert('請選擇來源經銷商'); return; }
+  if(!main_sku){ alert('請選擇主料號'); return; }
+  const body = {
+    dealer_name,
+    dealer_code: document.getElementById('mf_code').value.trim(),
+    ean: document.getElementById('mf_ean').value.trim(),
+    product_name: document.getElementById('mf_name').value.trim(),
+    main_sku,
+    gift_sku1: document.getElementById('mf_gift1').value,
+    gift_sku2: document.getElementById('mf_gift2').value,
+    gift_sku3: document.getElementById('mf_gift3').value,
+    note: document.getElementById('mf_note').value.trim(),
+  };
+  const isEdit = !!MAP_FORM_EDIT_ID;
+  const url = isEdit ? '/api/dealer/mapping/'+MAP_FORM_EDIT_ID : '/api/dealer/mapping';
+  let res, j;
+  try{
+    res = await fetch(url, {method: isEdit?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    j = await res.json();
+  }catch(e){
+    alert('伺服器回傳非預期格式（可能是部署中或逾時），請稍候重新整理頁面後再試一次');
+    return;
+  }
+  if(j.error){ alert(j.error); return; }
+  closeMapFormModal();
+  loadMapping();
+}
+
+// ============ 經銷商格式規則 ============
+async function loadRules(){
+  const res = await fetch('/api/dealer/rules');
+  RULES_CACHE = await res.json();
+  const sel = document.getElementById('ruleSelect');
+  sel.innerHTML = RULES_CACHE.map(r=>`<option value="${r.id}">${r.dealer_name}</option>`).join('') || '<option value="">尚無規則</option>';
+  loadRuleDetail();
+}
+function loadRuleDetail(){
+  const sel = document.getElementById('ruleSelect');
+  const rid = parseInt(sel.value);
+  const rule = RULES_CACHE.find(r=>r.id===rid);
+  const box = document.getElementById('ruleDetailBox');
+  if(!rule){ box.innerHTML = '<div class="small-muted">尚無規則，請點選「新增經銷商規則」。</div>'; return; }
+  renderRuleForm(rule, box);
+}
+function openNewRule(){
+  const box = document.getElementById('ruleDetailBox');
+  renderRuleForm({dealer_name:'', detect_sheet_keywords:'', sheets_config:[], is_active:true}, box, true);
+}
+function renderRuleForm(rule, box, isNew){
+  const sheets = rule.sheets_config || [];
+  box.innerHTML = `
+    <div class="rule-block">
+      <div class="row g-2 mb-2">
+        <div class="col-4"><label class="small-muted">經銷商名稱</label><input class="form-control form-control-sm" id="rf_name" value="${rule.dealer_name||''}"></div>
+        <div class="col-4"><label class="small-muted">判斷用分頁名稱關鍵字（逗號分隔）</label><input class="form-control form-control-sm" id="rf_kw" value="${rule.detect_sheet_keywords||''}"></div>
+        <div class="col-3"><label class="small-muted">狀態</label>
+          <select class="form-select form-select-sm" id="rf_active"><option value="true" ${rule.is_active!==false?'selected':''}>啟用中</option><option value="false" ${rule.is_active===false?'selected':''}>停用</option></select>
+        </div>
+      </div>
+      <div class="small-muted mb-2">分頁設定：<span class="text-muted">（「副代碼」用於主代碼不足以唯一識別商品時，如momo同一品號有多個顏色，需搭配單品編號欄位，系統會自動組成「主代碼-副代碼」再比對；「副商品名稱」同理用於商品名稱欄不含顏色/款式時，如momo的「單品說明」，只影響顯示不影響比對；「未稅金額」「含稅金額」擇一填寫，依此經銷商對帳檔實際欄位是含稅或未稅分別填入，財報畫面會分開呈現這兩種金額；「舊版金額」為相容用欄位，可留著不動；「稅額」為選填，僅供財報匯出使用）</span></div>
+      <div id="sheetRows"></div>
+      <button class="btn btn-sm btn-outline-secondary mt-1" onclick="addSheetRow()"><i class="bi bi-plus-lg"></i> 新增分頁設定</button>
+      <div class="text-end mt-2">
+        ${isNew?'':'<button class="btn btn-sm btn-outline-danger me-2" onclick="deleteRule('+rule.id+')">刪除此規則</button>'}
+        <button class="btn btn-sm btn-primary" onclick="saveRule(${isNew?'null':rule.id})">儲存規則</button>
+      </div>
+    </div>`;
+  const rowsBox = document.getElementById('sheetRows');
+  rowsBox.innerHTML = '';
+  sheets.forEach(s=>addSheetRow(s));
+  if(!sheets.length) addSheetRow();
+}
+function addSheetRow(s){
+  s = s || {sheet_name:'', row_type_mode:'fixed', row_type_fixed:'sale', col_row_type:'', return_values:'',
+            col_dealer_code:'', col_dealer_code2:'', col_ean:'', col_product_name:'', col_product_name2:'',
+            col_qty:'', col_unit_price:'', col_amount:'', col_amount_untaxed:'', col_amount_taxed:'',
+            col_tax_amount:'', header_row:1};
+  const div = document.createElement('div');
+  div.className = 'sheet-row';
+  div.innerHTML = `
+    <div class="row g-1 mb-1">
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="分頁名稱" value="${s.sheet_name}" data-f="sheet_name"></div>
+      <div class="col-1"><input class="form-control form-control-sm" placeholder="表頭列" value="${s.header_row}" data-f="header_row"></div>
+      <div class="col-2">
+        <select class="form-select form-select-sm" data-f="row_type_mode" onchange="this.closest('.sheet-row').querySelector('[data-f=fixedbox]').style.display=(this.value==='fixed'?'block':'none'); this.closest('.sheet-row').querySelector('[data-f=colbox]').style.display=(this.value==='by_column'?'block':'none');">
+          <option value="fixed" ${s.row_type_mode==='fixed'?'selected':''}>整頁固定類型</option>
+          <option value="by_column" ${s.row_type_mode==='by_column'?'selected':''}>依欄位值判斷</option>
+        </select>
+      </div>
+      <div class="col-2" data-f="fixedbox" style="display:${s.row_type_mode==='fixed'?'block':'none'}">
+        <select class="form-select form-select-sm" data-f="row_type_fixed">
+          <option value="sale" ${s.row_type_fixed==='sale'?'selected':''}>銷貨</option>
+          <option value="return" ${s.row_type_fixed==='return'?'selected':''}>退貨</option>
+        </select>
+      </div>
+      <div class="col-2" data-f="colbox" style="display:${s.row_type_mode==='by_column'?'block':'none'}">
+        <input class="form-control form-control-sm" placeholder="判斷欄位表頭(如異動別)" value="${s.col_row_type}" data-f="col_row_type">
+      </div>
+      <div class="col-2" data-f="colbox2" style="display:${s.row_type_mode==='by_column'?'block':'none'}">
+        <input class="form-control form-control-sm" placeholder="退貨值(如:退貨)" value="${s.return_values}" data-f="return_values">
+      </div>
+      <div class="col-1"><i class="bi bi-trash text-danger" style="cursor:pointer" onclick="this.closest('.sheet-row').remove()"></i></div>
+    </div>
+    <div class="row g-1">
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:經銷商代碼" value="${s.col_dealer_code}" data-f="col_dealer_code"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:副代碼(可留空)" value="${s.col_dealer_code2||''}" data-f="col_dealer_code2"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:EAN" value="${s.col_ean}" data-f="col_ean"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:商品名稱" value="${s.col_product_name}" data-f="col_product_name"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:副商品名稱(可留空)" value="${s.col_product_name2||''}" data-f="col_product_name2"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:數量" value="${s.col_qty}" data-f="col_qty"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:單價" value="${s.col_unit_price}" data-f="col_unit_price"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:舊版金額(相容用)" value="${s.col_amount}" data-f="col_amount"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:未稅金額(擇一填)" value="${s.col_amount_untaxed||''}" data-f="col_amount_untaxed"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:含稅金額(擇一填)" value="${s.col_amount_taxed||''}" data-f="col_amount_taxed"></div>
+      <div class="col-2"><input class="form-control form-control-sm" placeholder="表頭:稅額(可留空)" value="${s.col_tax_amount||''}" data-f="col_tax_amount"></div>
+    </div>`;
+  document.getElementById('sheetRows').appendChild(div);
+}
+function collectSheetsConfig(){
+  return Array.from(document.querySelectorAll('#sheetRows .sheet-row')).map(row=>{
+    const obj = {};
+    row.querySelectorAll('[data-f]').forEach(el=>{
+      const key = el.getAttribute('data-f');
+      if(key==='fixedbox'||key==='colbox'||key==='colbox2') return;
+      obj[key] = el.value;
+    });
+    obj.header_row = parseInt(obj.header_row)||1;
+    return obj;
+  });
+}
+async function saveRule(id){
+  const body = {
+    dealer_name: document.getElementById('rf_name').value,
+    detect_sheet_keywords: document.getElementById('rf_kw').value,
+    is_active: document.getElementById('rf_active').value==='true',
+    sheets_config: collectSheetsConfig(),
+  };
+  const url = id ? '/api/dealer/rules/'+id : '/api/dealer/rules';
+  const res = await fetch(url, {method: id?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const j = await res.json();
+  if(j.error){ alert(j.error); return; }
+  await loadRules();
+}
+async function deleteRule(id){
+  if(!confirm('確定刪除此經銷商規則？')) return;
+  await fetch('/api/dealer/rules/'+id, {method:'DELETE'});
+  await loadRules();
+}
+</script>
+</body>
+</html>
