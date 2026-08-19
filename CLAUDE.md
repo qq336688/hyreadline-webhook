@@ -1,6 +1,6 @@
 # HyRead LINE Q&A Bot 專案
 
-> 最後更新：2026/08/19（抽查確認案號/金額保留正常；補跑8/6~8/19累積463筆新訊息，offset 90595→91058；修正「上次分析時間」顯示慢8小時的UTC bug並已部署上線，待下次新資料寫入時驗證顯示是否正確；備份表 qa_results_backup_0803／qa_items_backup_0803 Stacy決定先保留不刪；修正「整理QA」batch_num bug並新增 `/cron/daily_analysis` 每日自動觸發端點，設定完成後不用再手動跑Colab補資料，待Stacy設定Render環境變數CRON_SECRET＋外部排程服務並完成部署）
+> 最後更新：2026/08/19（抽查確認案號/金額保留正常；補跑8/6~8/19累積463筆新訊息，offset 90595→91058；修正「上次分析時間」顯示慢8小時的UTC bug，2026/08/19 13:45已用實際自動觸發驗證顯示正確；備份表 qa_results_backup_0803／qa_items_backup_0803 Stacy決定先保留不刪；修正「整理QA」batch_num bug並新增 `/cron/daily_analysis` 每日自動觸發端點，已設定Render環境變數CRON_SECRET＋cron-job.org每天13:45自動觸發，端到端驗證全部通過，之後不用再手動跑Colab補資料）
 
 ---
 
@@ -136,23 +136,33 @@ hyreadline-webhook/
 
 ---
 
-## 每日自動整理QA（2026/08/19新增，取代手動Colab補跑）
+## 每日自動整理QA（2026/08/19新增並已上線，端到端驗證通過）
 
-不想每天手動觸發的話，可以設定外部排程服務自動每天呼叫一次新增的端點，讓群組新訊息自動分析，不需要人工介入。
+不用再手動開 Colab 補跑了。每天固定時間由外部排程服務自動呼叫端點，讓群組新訊息自動分析，不需要人工介入。
 
-### 設定步驟
+### 目前設定（已生效）
 
-1. **Render 環境變數新增兩個**（Render Dashboard → Environment）：
-   - `CRON_SECRET`：自己設一組隨機字串（例如用密碼產生器生成），作為觸發端點的驗證密鑰，避免被外部亂打造成不必要的 Gemini 花費
-   - `DEFAULT_GROUP_ID`（可選）：填入 Gaze維修客服 LINE 群組的 group_id，設定後每次自動整理完成會像手動打「整理QA」一樣推播完成通知到群組；不填的話就是靜默執行，只能從 `/qa` 頁面或 Render logs 確認有沒有跑
-2. **上傳新版 app.py 到 GitHub 並等 Render 部署完成**
-3. **手動測試一次**：瀏覽器打開 `https://hyreadline-webhook.onrender.com/cron/daily_analysis?secret=你設定的CRON_SECRET值`，應該會回傳 `{"status":"started"}`，之後去 Render Logs 確認有沒有跑analysis（跟今天在Colab看到的批次訊息格式類似）
-4. **設定外部排程服務每天定時觸發**：推薦用 [cron-job.org](https://cron-job.org)（免費），註冊後新增一個 Cronjob，網址填上面測試用的那個網址（含secret），排程時間選妳想要的每天執行時間（例如每天早上6點），存檔啟用即可
+- **Render 環境變數**：`CRON_SECRET=hyread-cron-8a3f9c2e7b41`；`DEFAULT_GROUP_ID` 目前留空未設定（沒有LINE完成通知，靜默執行）
+- **外部排程**：cron-job.org（Stacy自己的免費帳號），Cronjob名稱「HyRead 每日整理QA」，網址：
+  `https://hyreadline-webhook.onrender.com/cron/daily_analysis?secret=hyread-cron-8a3f9c2e7b41`，
+  排程「每天 13:45（Asia/Taipei時區）」
+- **2026/08/19 13:45 端到端驗證通過**：cron-job.org History顯示Successful/200 OK；Render Logs在
+  13:45:17出現Gemini API呼叫的SDK提示訊息（代表真的執行到分析步驟，不是「沒有新訊息」提早結束）；
+  `/qa`頁面「系統更新時間」變成`2026/08/19 13:45`且時間正確無8小時延遲——同時驗證了batch_num修正、
+  cron端點、UTC顯示修正三項都正常運作
+
+### 之後想調整
+
+- **想改執行時間**（例如改成每天早上6~8點）：登入 cron-job.org → Cronjobs → 點「HyRead 每日整理QA」
+  的 EDIT，改 Execution schedule 即可
+- **想要LINE完成通知**：到 Render Environment 補上 `DEFAULT_GROUP_ID`（Gaze維修客服群組的group_id，
+  目前程式碼裡沒有任何地方記錄這個值，需要另外想辦法取得，例如暫時加一行log印出來）
 
 ### 注意事項
 
 - 每次自動執行最多處理 50 筆新訊息（跟手動「整理QA」相同上限），如果單日訊息量超過50筆，多出來的會留到下一次執行繼續處理，不會遺失
 - `CRON_SECRET` 是必要的，沒設定或帶錯密鑰，這個端點會回傳 403 拒絕執行
+- Colab 腳本保留作為「一次性大量補資料」或這個自動排程萬一故障時的備用手段
 - 設定完成後，理論上就不再需要手動開 Colab 補跑了；Colab 腳本保留作為「一次性大量補資料」或「這個自動排程萬一故障時」的備用手段
 
 ---
@@ -460,7 +470,7 @@ CREATE POLICY "allow_all_authenticated" ON 新表名 FOR ALL USING (true);
     2. ✅ 已回後台「QA 管理」重新隱藏開會相關內部訊息。**注意**：原記錄的 id 40/935/4480/4585 是舊表（重跑前）的編號，`TRUNCATE` 後新表 id 全部重新編號對不上，後台搜尋框查的是內容不是ID，所以改用 `SELECT id,q_text,a_text FROM qa_items_backup_0803 WHERE id IN (40,935,4480,4585);` 查出舊內容關鍵字，再拿關鍵字去後台搜尋比對後手動隱藏
     3. ✅ **2026/08/19 抽查確認**：關鍵字「維修費」搜尋 /qa，Q1（#7102）、Q2（#7101）案號與金額（原廠報價6000元、折後5400元）皆完整保留在 q_text/a_text，內容保留規則確認生效
     4. ⏸️ **Stacy 2026/08/19 決定**：先不刪 `qa_results_backup_0803`／`qa_items_backup_0803` 備份表，留著當保險，沒有急迫性。之後要刪的話：`DROP TABLE IF EXISTS qa_results_backup_0803; DROP TABLE IF EXISTS qa_items_backup_0803;`
-    5. 🔄 **修正「上次分析時間」顯示慢8小時的問題，2026/08/19已動手**（見上方「重要限制與解法」表格條目）——程式碼已修正並部署上線（Render確認「Your service is live」），Colab筆記本也已同步新版，但**尚未驗證修正是否真的生效**：因為此修正只影響之後新寫入的資料，畫面上顯示的舊時間戳要等下一次真的有新資料寫入 qa_results 才會反映修正結果。下次接手記得：等下一次補跑後，比對畫面顯示時間跟實際台灣時間是否一致，才能真正關閉這個項目
+    5. ✅ **修正「上次分析時間」顯示慢8小時的問題，2026/08/19已完成並驗證**（見上方「重要限制與解法」表格條目）——程式碼已修正並部署上線，2026/08/19 13:45藉由每日自動整理QA的實際觸發驗證：`/qa`頁面「系統更新時間」正確顯示`13:45`（台灣時間），無8小時延遲，確認生效
   - **2026/08/05 意外發現並修正：標籤群組出現「案號誤植為標籤」的垃圾標籤**：後台「標籤群組管理」顯示「未分群」高達4,026筆（tag_groups共4,280筆），懷疑是 Gemini 把訊息裡的案號/工單號（如 #101、#1334）誤當成該題的 tags 產生，而非真正分類標籤。實際查證：未分群4,026筆中，符合 `^#[0-9]+$`（純#+數字）格式的只有84筆（約2%，其餘3,942筆是這次重跑產生的大量具體新標籤，只是還沒人工歸類，非垃圾資料，不影響查詢功能）。受影響 QA 筆數89筆（佔全部6,489筆QA的1.4%）。**已清理完成**：
     ```sql
     UPDATE qa_items SET tags = ARRAY(SELECT t FROM unnest(tags) t WHERE t !~ '^#[0-9]+$')
@@ -469,7 +479,8 @@ CREATE POLICY "allow_all_authenticated" ON 新表名 FOR ALL USING (true);
     ```
     執行後驗證：垃圾標籤數與受影響QA筆數都已歸零。**如果之後又發生同樣情況**：優先檢查 `colab_qa_analysis.py` 的 tags 生成規則有沒有把「案號逐字保留」的規則跟「tags 標籤規則」搞混（案號應該留在 q_text/a_text 裡，不該進 tags 陣列），目前 prompt 沒有明確禁止把案號當標籤，可考慮之後在 tags 規則加一條「禁止使用案號/工單號/純數字編號作為標籤」。
 - ✅ **2026/08/19 補跑 8/6~8/19 累積新訊息**：大重跑同步斷點後（`colab_offset=90595`），沒有人手動觸發後續分析，累積13天新訊息未整理。診斷方式：比對 `settings.last_analyzed_date`（2026/08/06 06:25）與 `SELECT MAX(created_at) FROM messages`（2026/08/19 03:23）確認落差。**改用 Colab 筆記本「2026/8/4重跑全部資料.ipynb」主程式cell單獨執行**（不用「全部執行」，該筆記本混有8/4~8/5 gap-filling用的舊儲存格，全部執行會連舊cell一起跑出 `NameError: get_checkpoint not defined`；也不用LINE「整理QA」，2026年度已跑過會被batch_num判定重複跳過0筆）。**執行結果：offset 90595 → 91058，共補上 463 筆新訊息（批次1812~1822，11個批次），全程無批次失敗**。完成後手動執行 `UPDATE settings SET value = (SELECT MAX(created_at) FROM messages) WHERE key = 'last_analyzed_date';` 同步顯示時間。Gemini帳戶（line project）餘額當時為NT$347，這次花費遠低於此，餘額足夠。
-- ✅ **2026/08/19 修正「上次分析時間」顯示慢8小時的UTC bug並部署上線**：詳見上方「重要限制與解法」表格條目。app.py三處＋colab_qa_analysis.py一處都加上 `+timedelta(hours=8)`，已上傳GitHub、Render確認部署成功、Colab筆記本也已同步新版。**驗證待下次新資料寫入時進行**（此修正不會回頭校正已存在的舊時間戳）。
+- ✅ **2026/08/19 修正「上次分析時間」顯示慢8小時的UTC bug並部署上線，已驗證生效**：詳見上方「重要限制與解法」表格條目。app.py三處＋colab_qa_analysis.py一處都加上 `+timedelta(hours=8)`，已上傳GitHub、Render確認部署成功、Colab筆記本也已同步新版。**驗證方式**：2026/08/19 13:45每日自動整理QA觸發後，`/qa`頁面「系統更新時間」正確顯示為`13:45`（實際台灣時間，無延遲），確認修正生效。
+- ✅ **2026/08/19 修正「整理QA」batch_num bug + 新增每日自動整理QA功能，端到端驗證通過**：詳見「每日自動整理QA」章節。app.py `run_analysis` 無year模式改為接續該年度目前最大batch_num編號，不再從1起算查重；新增 `/cron/daily_analysis?secret=xxx` 端點，搭配Render環境變數`CRON_SECRET`+cron-job.org每天13:45自動觸發。實際驗證：cron-job.org顯示執行成功，Render log出現Gemini呼叫紀錄，`/qa`頁面時間正確更新，確認整條自動化鏈路正常運作，之後不用再手動開Colab補跑。
 
 ---
 
