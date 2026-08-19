@@ -75,8 +75,9 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .qa-img-link{display:inline-block;margin-top:6px}
 .qa-img-thumb{max-width:180px;max-height:130px;border-radius:6px;border:.5px solid #ddd;display:block;object-fit:cover}
 .qa-file-link{display:inline-block;margin-top:4px;font-size:11px;color:#1565c0;text-decoration:none;background:#e3f2fd;padding:3px 9px;border-radius:99px}
-.gen-toggle-btn{padding:8px 14px;border:.5px solid rgba(255,255,255,.5);border-radius:6px;background:rgba(255,255,255,.12);color:#fff;font-size:12px;cursor:pointer;white-space:nowrap}
-.gen-toggle-btn.gen-active{background:#fff;color:#00b900;border-color:#fff;font-weight:600}
+.gen-toggle-btn{padding:9px 16px;border:1.5px solid rgba(255,255,255,.7);border-radius:6px;background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.gen-toggle-btn:hover{background:rgba(255,255,255,.25)}
+.gen-toggle-btn.gen-active{background:#fff;color:#00b900;border-color:#fff}
 .gen-card{background:#fff;border:.5px solid #e0e0e0;border-radius:8px;padding:10px 13px;margin-bottom:8px}
 .gen-txt{font-size:12px;color:#555;line-height:1.7}
 .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:1;color:#bbb;font-size:13px;gap:8px;text-align:left;padding:20px 24px}
@@ -159,7 +160,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
           onkeydown="if(event.key==='Enter')search()">
         <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
         <button class="clear-btn" onclick="clearSearch()" title="清除">&#x2715;</button>
-        <button class="gen-toggle-btn" id="genToggleBtn" onclick="toggleGeneralMode()" title="瀏覽沒有明確問答關係的一般訊息（含附件連結）">&#128203; 一般訊息</button>
+        <button class="gen-toggle-btn" id="genToggleBtn" onclick="toggleGeneralMode()" title="瀏覽沒有明確問答關係的一般訊息（含附件連結），再點一次可切換回 Q&amp;A">一般訊息</button>
       </div>
       <div class="yr-checks">
         <label><input type="checkbox" id="yrAll" checked onchange="toggleAllYrs(this)">全選</label>
@@ -576,13 +577,11 @@ function toggleGeneralMode(){
   var btn=document.getElementById('genToggleBtn');
   if(generalMode){
     btn.classList.add('gen-active');
-    btn.innerHTML='&#128172; 回到 Q&amp;A';
     browseMode=false;browseYr='';
     document.getElementById('homeState')&&(document.getElementById('homeState').style.display='none');
     _doSearch();
   }else{
     btn.classList.remove('gen-active');
-    btn.innerHTML='&#128203; 一般訊息';
     clearSearch();
   }
 }
