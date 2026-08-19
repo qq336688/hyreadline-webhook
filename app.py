@@ -223,6 +223,22 @@ def ping():
     return "pong", 200
 
 # ──────────────────────────────────────────────
+# 每日自動整理QA（2026/08/19新增，取代手動Colab補跑）
+# 用外部排程服務（如 cron-job.org）每天固定時間打這個網址觸發，
+# 需帶正確的 secret 才會執行，避免被亂打造成不必要的Gemini花費。
+# 網址格式：https://<你的Render網址>/cron/daily_analysis?secret=<CRON_SECRET環境變數的值>
+# ──────────────────────────────────────────────
+@app.route("/cron/daily_analysis", methods=["GET", "POST"])
+def cron_daily_analysis():
+    secret = request.args.get("secret") or request.headers.get("X-Cron-Secret")
+    expected = os.environ.get("CRON_SECRET")
+    if not expected or secret != expected:
+        abort(403)
+    group_id = os.environ.get("DEFAULT_GROUP_ID") or None
+    threading.Thread(target=run_analysis, args=(None, group_id), daemon=True).start()
+    return jsonify({"status": "started"}), 200
+
+# ──────────────────────────────────────────────
 # Q&A 查詢主頁
 # ──────────────────────────────────────────────
 @app.route("/qa")
@@ -1663,14 +1679,29 @@ def run_analysis(year, group_id):
         total_batches = (len(filtered) + BATCH - 1) // BATCH
         saved = 0
 
-        for i in range(0, len(filtered), BATCH):
-            batch      = filtered[i:i + BATCH]
-            batch_num  = (i // BATCH) + 1
-            title_year = year or datetime.now().strftime("%Y")
+        # 2026/08/19 修正：無year（「整理QA」不加年份／每日自動整理）模式抓到的訊息一定是
+        # 全新、之前沒分析過的，若沿用「(i // BATCH) + 1」從1開始編號，會跟該年度已存在的大量
+        # 歷史batch_num撞號，被下面「已存在」檢查誤判為重複而永遠跳過、回傳0筆。改為接續該年度
+        # 目前最大batch_num繼續往後編號；year模式（整理QA 20XX）維持原本以i計算的可續傳邏輯不動。
+        title_year = year or datetime.now().strftime("%Y")
+        next_batch_start = 1
+        if not year:
+            existing_max = supabase.table("qa_results") \
+                .select("batch_num").eq("year", title_year) \
+                .order("batch_num", desc=True).limit(1).execute()
+            next_batch_start = (existing_max.data[0]["batch_num"] + 1) if existing_max.data else 1
 
-            existing = supabase.table("qa_results")                .select("id").eq("year", title_year).eq("batch_num", batch_num).execute()
-            if existing.data:
-                continue
+        for i in range(0, len(filtered), BATCH):
+            batch = filtered[i:i + BATCH]
+
+            if year:
+                batch_num = (i // BATCH) + 1
+                existing = supabase.table("qa_results")                .select("id").eq("year", title_year).eq("batch_num", batch_num).execute()
+                if existing.data:
+                    continue
+            else:
+                batch_num = next_batch_start + (i // BATCH)
+                # 這批訊息保證是全新未分析過的（cursor-based 前進），batch_num也保證不重複，不需再查重
 
             prompt = _build_prompt(batch, tag_hint)
             try:
