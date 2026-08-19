@@ -18,13 +18,18 @@ BATCH_SIZE       = 50      # 每批送給 Gemini 的訊息筆數（2026年後訊
 SUPABASE_CHUNK   = 1000    # 每次從 Supabase 抓取的筆數（PostgREST 上限）
 CHECKPOINT_KEY   = "colab_offset"   # 斷點儲存在 settings 資料表的 key 名稱
 
+MAX_RETRIES      = 5       # Gemini 呼叫失敗（503過載/429配額）時的重試次數
+RETRY_BASE_DELAY = 15      # 重試基礎等待秒數（指數增加：15, 30, 60, 120, 240）
+BATCH_PAUSE      = 2       # 每批次之間固定暫停秒數，降低觸發過載機率
+
 # =============================================================
 #  以下程式碼不需要修改
 # =============================================================
 
 import re
 import json
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from supabase import create_client
 from google import genai
 from google.genai import types
@@ -259,21 +264,43 @@ def build_prompt(rows: list) -> str:
 
 
 def call_gemini(prompt: str) -> dict:
-    """呼叫 Gemini 2.5 Flash，要求回傳 JSON"""
-    response = gemini.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json"
-        )
-    )
-    raw = response.text.strip()
+    """
+    呼叫 Gemini 2.5 Flash，要求回傳 JSON。
+    含自動重試：503（模型過載）、429（配額）、500 等暫時性錯誤會用指數等待重試，
+    最多重試 MAX_RETRIES 次，全部失敗才往外拋出例外。
+    """
+    last_err = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = gemini.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+            raw = response.text.strip()
 
-    # 防禦：有時模型還是會包 ```json … ```
-    raw = re.sub(r"^```json\s*", "", raw)
-    raw = re.sub(r"```\s*$", "",  raw)
+            # 防禦：有時模型還是會包 ```json … ```
+            raw = re.sub(r"^```json\s*", "", raw)
+            raw = re.sub(r"```\s*$", "",  raw)
 
-    return json.loads(raw)
+            return json.loads(raw)
+
+        except Exception as e:
+            last_err = e
+            err_str  = str(e)
+            retryable = any(code in err_str for code in
+                            ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "500", "INTERNAL"))
+
+            if retryable and attempt < MAX_RETRIES:
+                wait = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                print(f"    ⚠️ 第 {attempt}/{MAX_RETRIES} 次呼叫失敗（{err_str[:100]}），{wait} 秒後重試...")
+                time.sleep(wait)
+                continue
+
+            # 不可重試的錯誤，或已達重試上限 → 往外拋出，交給呼叫端處理
+            raise last_err
 
 
 def build_qa_text(data: dict) -> str:
@@ -305,7 +332,7 @@ def save_to_supabase(batch_num: int, year: str, qa_text: str,
                      raw_rows: list = None):
     """將結果存入 qa_results 並拆分至 qa_items（含逐題 tags）"""
     categories = data.get("suggested_categories", "")
-    now_str    = datetime.now().strftime("%Y/%m/%d %H:%M")
+    now_str    = (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")
     title      = f"Colab批次 {batch_num}（{year}年，{total_msgs}筆）"
 
     # ── 存 qa_results ──────────────────────────────────────
@@ -384,6 +411,7 @@ def run():
 
     current_offset = start_offset
     batch_num      = (start_offset // BATCH_SIZE) + 1
+    failed_batches = []   # 記錄重試後仍失敗、被跳過的批次區間，供結束後檢視
 
     while True:
         print(f"── 批次 {batch_num}：抓取 offset {current_offset} ~ {current_offset + BATCH_SIZE - 1} ──")
@@ -420,9 +448,15 @@ def run():
             gm_count = len(data.get("general_messages", []))
             print(f"  Gemini 回傳：{qa_count} 組 Q&A，{gm_count} 則一般訊息")
         except Exception as e:
-            print(f"  ❌ Gemini 呼叫失敗：{e}")
-            print("     此批次跳過，斷點維持在目前位置，可重新執行續跑。")
-            break
+            print(f"  ❌ 批次 {batch_num} 重試 {MAX_RETRIES} 次後仍失敗：{e}")
+            end_offset = current_offset + len(raw_rows) - 1
+            print(f"     跳過此批次（offset {current_offset}~{end_offset}），記錄後繼續下一批。")
+            failed_batches.append((current_offset, end_offset))
+            current_offset += len(raw_rows)
+            save_checkpoint(current_offset)
+            batch_num += 1
+            time.sleep(BATCH_PAUSE)
+            continue
 
         # 6. 轉換格式並存入 Supabase
         qa_text    = build_qa_text(data)
@@ -445,10 +479,19 @@ def run():
         print()
 
         batch_num += 1
+        time.sleep(BATCH_PAUSE)   # 每批次間短暫暫停，降低連續觸發過載的機率
 
     print(f"\n{'='*55}")
     print(f"  執行結束  |  最終 offset = {current_offset}")
     print(f"{'='*55}")
+
+    if failed_batches:
+        print(f"\n⚠️  有 {len(failed_batches)} 個批次重試多次仍失敗，已跳過（建議稍後手動補跑）：")
+        for s, e in failed_batches:
+            print(f"     - offset {s} ~ {e}")
+    else:
+        print("\n✅ 全程無批次失敗。")
+
     print("\n完成後請到管理介面 → 分析總覽 → 立即補跑解析，更新分類索引。")
 
 

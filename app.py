@@ -1412,7 +1412,7 @@ def save_message(text, sender, file_url="", file_type="none"):
 def save_token_log(title, token_info):
     try:
         supabase.table("token_logs").insert({
-            "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+            "analyzed_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M"),
             "title": title,
             "input_tokens": token_info.get("input", 0),
             "output_tokens": token_info.get("output", 0),
@@ -1486,7 +1486,7 @@ def save_qa_result(year, batch_num, title, content, start_row, end_row, total_ms
     try:
         supabase.table("qa_results").insert({
             "year": year, "batch_num": batch_num, "title": title,
-            "content": content, "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+            "content": content, "analyzed_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M"),
             "start_row": start_row, "end_row": end_row,
             "total_msgs": total_msgs, "categories": categories
         }).execute()
@@ -1698,7 +1698,7 @@ def run_analysis(year, group_id):
             result = supabase.table("qa_results").insert({
                 "year": title_year, "batch_num": batch_num, "title": title,
                 "content": content,
-                "analyzed_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "analyzed_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M"),
                 "start_row": i, "end_row": i + len(batch) - 1,
                 "total_msgs": len(batch), "categories": categories
             }).execute()
