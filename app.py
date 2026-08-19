@@ -402,6 +402,38 @@ def qa_search():
         print("搜尋失敗：", e, flush=True)
         return jsonify({"results": [], "total": 0, "error": str(e)})
 
+
+@app.route("/qa/api/general_messages", methods=["POST"])
+@require_qa
+def qa_general_messages():
+    """查詢「沒有明確問答關係」的一般訊息（含附件連結），供 /qa 頁面另外瀏覽"""
+    data = request.get_json()
+    keyword = (data.get("keyword") or "").strip()
+    years = data.get("years", [])
+    page = int(data.get("page", 1))
+    page_size = 50
+    try:
+        def build_query(base):
+            if keyword:
+                base = base.ilike("text", "%" + keyword + "%")
+            if years:
+                base = base.in_("year", years)
+            return base
+
+        count_res = build_query(supabase.table("general_messages").select("id", count="exact")).execute()
+        total = count_res.count or 0
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+
+        rows = build_query(supabase.table("general_messages").select("*")) \
+            .order("id", desc=True).range(start, start + page_size - 1).execute().data
+        return jsonify({"results": rows, "total": total,
+                        "page": page, "total_pages": total_pages, "page_size": page_size})
+    except Exception as e:
+        print("一般訊息查詢失敗：", e, flush=True)
+        return jsonify({"results": [], "total": 0, "error": str(e)})
+
 @app.route("/qa/api/update_tags", methods=["POST"])
 @require_qa
 def qa_update_tags():
@@ -1798,6 +1830,19 @@ def run_analysis(year, group_id):
                 })
             if items:
                 supabase.table("qa_items").insert(items).execute()
+
+            # 2026/08/19 新增：把「沒有明確問答關係」的一般訊息也存成獨立記錄，
+            # 讓 /qa 頁面可以另外瀏覽（含附件連結），不再只能埋在 qa_results.content 裡看不到。
+            gm_list = data2.get("general_messages", [])
+            if gm_list:
+                try:
+                    gm_rows = [{
+                        "year": title_year, "batch_num": batch_num, "batch_id": batch_id,
+                        "text": gm, "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+                    } for gm in gm_list]
+                    supabase.table("general_messages").insert(gm_rows).execute()
+                except Exception as e:
+                    print("一般訊息儲存失敗：", e, flush=True)
 
             try:
                 usage = response.usage_metadata
