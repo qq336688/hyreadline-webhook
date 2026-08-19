@@ -2,7 +2,8 @@ from flask import Flask, request, abort, jsonify, session, redirect, render_temp
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (MessageEvent, TextMessage, TextSendMessage,
-                             ImageMessage, FileMessage)
+                             ImageMessage, FileMessage, VideoMessage,
+                             AudioMessage, StickerMessage)
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import os, re, threading, time
@@ -1517,6 +1518,19 @@ def upload_file(content, filename, content_type):
     except:
         return ""
 
+# 2026/08/19 新增：單一媒體檔案下載上限，避免影片/語音檔太大把 Render 免費方案
+# 512MB RAM 記憶體榨乾造成整支服務被系統 SIGKILL（連文字訊息、整理QA都會一起掛掉）。
+MAX_MEDIA_BYTES = 20 * 1024 * 1024  # 20MB
+
+def _download_message_content(message_id, max_bytes=MAX_MEDIA_BYTES):
+    content = line_bot_api.get_message_content(message_id)
+    buf = bytearray()
+    for chunk in content.iter_content():
+        buf.extend(chunk)
+        if len(buf) > max_bytes:
+            raise ValueError("檔案超過 %dMB 上限，為避免記憶體不足已略過儲存" % (max_bytes // (1024 * 1024)))
+    return bytes(buf)
+
 # ──────────────────────────────────────────────
 # 訊息過濾
 # ──────────────────────────────────────────────
@@ -1571,7 +1585,7 @@ def should_skip(msg, db_phrases, db_senders, db_keywords):
     if not EMOJI_RE.sub("", text).strip(): return True
     if text in HARD_PHRASES: return True
     if db_phrases and text in db_phrases: return True
-    if text in ("[圖片]", "[貼圖]", "[Sticker]") and not msg.get("file_url"): return True
+    if text in ("[圖片]", "[貼圖]", "[Sticker]", "[影片]", "[語音]") and not msg.get("file_url"): return True
     return False
 
 
@@ -1621,8 +1635,7 @@ def handle_image(event):
     if sender in HARD_BOT_SENDERS:
         return
     try:
-        content = line_bot_api.get_message_content(event.message.id)
-        data    = b"".join(content.iter_content())
+        data    = _download_message_content(event.message.id)
         filename = "images/" + event.message.id + ".jpg"
         url = upload_file(data, filename, "image/jpeg")
     except Exception as e:
@@ -1638,14 +1651,51 @@ def handle_file(event):
         return
     fname = getattr(event.message, "file_name", None) or event.message.id
     try:
-        content = line_bot_api.get_message_content(event.message.id)
-        data    = b"".join(content.iter_content())
+        data    = _download_message_content(event.message.id)
         filename = "files/" + str(event.message.id) + "_" + str(fname)
         url = upload_file(data, filename, "application/octet-stream")
     except Exception as e:
         print("檔案上傳失敗：", e, flush=True)
         url = ""
     save_message("[檔案] " + str(fname), sender, file_url=url, file_type="file")
+
+
+@handler.add(MessageEvent, message=VideoMessage)
+def handle_video(event):
+    sender = get_sender_name(event)
+    if sender in HARD_BOT_SENDERS:
+        return
+    try:
+        data    = _download_message_content(event.message.id)
+        filename = "videos/" + event.message.id + ".mp4"
+        url = upload_file(data, filename, "video/mp4")
+    except Exception as e:
+        print("影片上傳失敗：", e, flush=True)
+        url = ""
+    save_message("[影片]", sender, file_url=url, file_type="video")
+
+
+@handler.add(MessageEvent, message=AudioMessage)
+def handle_audio(event):
+    sender = get_sender_name(event)
+    if sender in HARD_BOT_SENDERS:
+        return
+    try:
+        data    = _download_message_content(event.message.id)
+        filename = "audio/" + event.message.id + ".m4a"
+        url = upload_file(data, filename, "audio/m4a")
+    except Exception as e:
+        print("語音上傳失敗：", e, flush=True)
+        url = ""
+    save_message("[語音]", sender, file_url=url, file_type="audio")
+
+
+@handler.add(MessageEvent, message=StickerMessage)
+def handle_sticker(event):
+    sender = get_sender_name(event)
+    if sender in HARD_BOT_SENDERS:
+        return
+    save_message("[貼圖]", sender, file_url="", file_type="sticker")
 
 
 # ──────────────────────────────────────────────
@@ -1778,7 +1828,7 @@ def fetch_new_messages(limit=50):
     offset = 0
     while True:
         r = (supabase.table("messages")
-             .select("id,text,sender,created_at")
+             .select("id,text,sender,created_at,file_url,file_type")
              .gt("created_at", last)
              .order("created_at")
              .range(offset, offset + 999)
@@ -1800,7 +1850,7 @@ def fetch_messages_by_year(year):
     offset = 0
     while True:
         r = (supabase.table("messages")
-             .select("id,text,sender,created_at")
+             .select("id,text,sender,created_at,file_url,file_type")
              .like("created_at", year + "/%")
              .order("created_at")
              .range(offset, offset + 999)
@@ -1813,7 +1863,13 @@ def fetch_messages_by_year(year):
 
 
 def _build_prompt(rows, tag_hint=""):
-    lines = ["[%s] %s：%s" % (r.get("created_at",""), r.get("sender",""), r.get("text","")) for r in rows]
+    def _fmt_row(r):
+        text = r.get("text", "") or ""
+        file_url = r.get("file_url") or ""
+        if file_url:
+            text = text + "（附件連結：" + file_url + "）"
+        return "[%s] %s：%s" % (r.get("created_at", ""), r.get("sender", ""), text)
+    lines = [_fmt_row(r) for r in rows]
     conversation = "\n".join(lines)
     tag_section = "\n優先從以下已知標籤選用（清單外才可新增）：" + tag_hint + "\n" if tag_hint else ""
     return """你是一個專業的客服 Q&A 整理助手。以下是 HyRead 電子書客服 LINE 群組的對話紀錄（共 """ + str(len(rows)) + """ 則）。
