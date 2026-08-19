@@ -74,6 +74,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .hi{background:#fff176;border-radius:2px;padding:0 1px}
 .qa-img-link{display:inline-block;margin-top:6px}
 .qa-img-thumb{max-width:180px;max-height:130px;border-radius:6px;border:.5px solid #ddd;display:block;object-fit:cover}
+.qa-file-link{display:inline-block;margin-top:4px;font-size:11px;color:#1565c0;text-decoration:none;background:#e3f2fd;padding:3px 9px;border-radius:99px}
+.gen-toggle-btn{padding:8px 14px;border:.5px solid rgba(255,255,255,.5);border-radius:6px;background:rgba(255,255,255,.12);color:#fff;font-size:12px;cursor:pointer;white-space:nowrap}
+.gen-toggle-btn.gen-active{background:#fff;color:#00b900;border-color:#fff;font-weight:600}
+.gen-card{background:#fff;border:.5px solid #e0e0e0;border-radius:8px;padding:10px 13px;margin-bottom:8px}
+.gen-txt{font-size:12px;color:#555;line-height:1.7}
 .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:1;color:#bbb;font-size:13px;gap:8px;text-align:left;padding:20px 24px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
 .chip{padding:7px 14px;border:.5px solid #ddd;border-radius:99px;font-size:12px;color:#666;cursor:pointer;background:#fff}
@@ -154,6 +159,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
           onkeydown="if(event.key==='Enter')search()">
         <button class="search-btn" onclick="search()" title="搜尋">&#x2315;</button>
         <button class="clear-btn" onclick="clearSearch()" title="清除">&#x2715;</button>
+        <button class="gen-toggle-btn" id="genToggleBtn" onclick="toggleGeneralMode()" title="瀏覽沒有明確問答關係的一般訊息（含附件連結）">&#128203; 一般訊息</button>
       </div>
       <div class="yr-checks">
         <label><input type="checkbox" id="yrAll" checked onchange="toggleAllYrs(this)">全選</label>
@@ -194,7 +200,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden}
   </main>
 </div>
 <script>
-var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false,sidebarActiveGroup=null,homeActiveGroup=null,popActiveGroup=null;
+var selectedTags=[],browseMode=false,browseYr='',currentPage=1,editMode=false,sidebarActiveGroup=null,homeActiveGroup=null,popActiveGroup=null,generalMode=false;
 /* Popover 用的預設標籤 */
 var PRESET_TAGS=['維修','保固','召回','APP','帳號','物流','閱讀器','書櫃','破屏','線條','出線','忘記密碼','開放式','封閉式'];
 /* 各卡片目前的 tags 暫存 {id: [tags]} */
@@ -538,12 +544,15 @@ function clearSearch(){
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(t){return(t||'').replace(/"/g,'&quot;')}
-/* 把文字中的圖片附件連結（Supabase line-files 圖片）轉成縮圖，點擊可開大圖 */
+/* 把文字中的附件連結轉成可視化元件：圖片變縮圖（點擊開大圖），其他檔案（影片/語音/文件）變成可點擊的附件按鈕 */
 function linkifyImages(html){
-  return html.replace(/(https?:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp))/gi,function(url){
-    return '<a href="'+url+'" target="_blank" rel="noopener" class="qa-img-link">'
-      +'<img src="'+url+'" loading="lazy" class="qa-img-thumb" alt="附件圖片">'
-      +'</a>';
+  return html.replace(/(https?:\/\/[^\s<>"']+)/gi,function(url){
+    if(/\.(?:jpg|jpeg|png|gif|webp)(?:\?.*)?$/i.test(url)){
+      return '<a href="'+url+'" target="_blank" rel="noopener" class="qa-img-link">'
+        +'<img src="'+url+'" loading="lazy" class="qa-img-thumb" alt="附件圖片">'
+        +'</a>';
+    }
+    return '<a href="'+url+'" target="_blank" rel="noopener" class="qa-file-link">&#128206; 開啟附件</a>';
   });
 }
 function hilite(text,kw){
@@ -562,10 +571,64 @@ function search(){
   if(kw)exitBrowse();
   _doSearch();
 }
+function toggleGeneralMode(){
+  generalMode=!generalMode;
+  var btn=document.getElementById('genToggleBtn');
+  if(generalMode){
+    btn.classList.add('gen-active');
+    btn.innerHTML='&#128172; 回到 Q&amp;A';
+    browseMode=false;browseYr='';
+    document.getElementById('homeState')&&(document.getElementById('homeState').style.display='none');
+    _doSearch();
+  }else{
+    btn.classList.remove('gen-active');
+    btn.innerHTML='&#128203; 一般訊息';
+    clearSearch();
+  }
+}
+function renderGeneralResults(d,kw){
+  window._lastSearchResult=d;
+  window._lastKw=kw;
+  var badge=document.getElementById('cntBadge');
+  if(!d.results||d.results.length===0){
+    badge.style.display='none';
+    document.getElementById('results').innerHTML='<div class="empty"><div>找不到相關資料</div><div style="font-size:12px;margin-top:4px">請換個關鍵字或年份試試</div></div>';
+    return;
+  }
+  badge.textContent='找到 '+d.total+' 筆';badge.style.display='';
+  var total=d.total,page=d.page||1,totalPages=d.total_pages||1;
+  var html='<div class="count-row">一般訊息（沒有明確問答關係的對話內容）　— 共 '+total+' 筆</div>';
+  d.results.forEach(function(r){
+    html+='<div class="gen-card">'
+      +'<div class="gen-txt">'+hilite(linkifyImages(esc(r.text||'')),kw)+'</div>'
+      +'</div>';
+  });
+  if(totalPages>1){
+    html+='<div class="pager">';
+    if(page>1)html+='<button class="pg-btn" onclick="_doSearch('+(page-1)+')">&#8592; 上一頁</button>';
+    var start=Math.max(1,page-10),end=Math.min(totalPages,page+9);
+    for(var p=start;p<=end;p++){
+      if(p===page)html+='<button class="pg-btn pg-cur">'+p+'</button>';
+      else html+='<button class="pg-btn" onclick="_doSearch('+p+')">'+p+'</button>';
+    }
+    if(page<totalPages)html+='<button class="pg-btn" onclick="_doSearch('+(page+1)+')">下一頁 &#8594;</button>';
+    html+='</div>';
+  }
+  document.getElementById('results').innerHTML=html;
+}
 function _doSearch(page){
   currentPage=page||1;
   var kw=document.getElementById('kw').value.trim();
   var years=browseMode?[browseYr]:getCheckedYears();
+  if(generalMode){
+    document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
+    document.getElementById('cntBadge').style.display='none';
+    fetch('/qa/api/general_messages',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({keyword:kw,years:years,page:currentPage})})
+    .then(function(r){return r.json()}).then(function(d){renderGeneralResults(d,kw)})
+    .catch(function(){document.getElementById('results').innerHTML='<div class="err">查詢失敗，請稍後再試</div>'});
+    return;
+  }
   if(!kw&&!selectedTags.length&&!browseMode)return;
   document.getElementById('results').innerHTML='<div class="loading">搜尋中...</div>';
   document.getElementById('cntBadge').style.display='none';
