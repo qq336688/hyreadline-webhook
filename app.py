@@ -180,7 +180,7 @@ def admin_setup():
             supabase.table("admin_users").insert({
                 "username": username,
                 "password_hash": hashed,
-                "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M"),
                 "is_active": True
             }).execute()
             return redirect("/admin/login")
@@ -586,7 +586,7 @@ def admin_add_tag_def():
         supabase.table("tag_definitions").insert({
             "name": name, "type": typ,
             "sort_order": next_order,
-            "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+            "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")
         }).execute()
         return jsonify({"ok": True})
     except Exception as e:
@@ -1075,7 +1075,7 @@ def add_user():
             "perm_users": data.get("perm_users", True),
             "perm_tags": data.get("perm_tags", True),
             "perm_groups": data.get("perm_groups", True),
-            "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+            "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M"),
             "is_active": True
         }).execute()
         return jsonify({"success": True})
@@ -1169,7 +1169,7 @@ def batch_add_users():
                 "perm_users": True,
                 "perm_tags": True,
                 "perm_groups": True,
-                "created_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M"),
                 "is_active": True
             }).execute()
             added += 1
@@ -1198,7 +1198,7 @@ def add_filter_word():
         "type": data.get("type", "phrase"),
         "is_system": False,
         "note": data.get("note", ""),
-        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+        "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")
     }).execute()
     return jsonify({"success": True})
 
@@ -1455,7 +1455,7 @@ def save_message(text, sender, file_url="", file_type="none"):
     supabase.table("messages").insert({
         "text": text, "sender": sender, "type": "message",
         "file_url": file_url, "file_type": file_type,
-        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+        "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")
     }).execute()
 
 def save_token_log(title, token_info):
@@ -1496,14 +1496,14 @@ def parse_and_save_qa_items(content, year, batch_num, batch_id, categories):
                     items.append({"batch_id": batch_id, "year": year,
                         "batch_num": batch_num, "q_text": current_q,
                         "a_text": " ".join(current_a), "category": categories,
-                        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                        "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")})
                 break
             if s == "---":
                 if current_q and current_a:
                     items.append({"batch_id": batch_id, "year": year,
                         "batch_num": batch_num, "q_text": current_q,
                         "a_text": " ".join(current_a), "category": categories,
-                        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                        "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")})
                     current_q, current_a = None, []
                 continue
             if re.match(r"^Q\d+[：:]", s):
@@ -1511,7 +1511,7 @@ def parse_and_save_qa_items(content, year, batch_num, batch_id, categories):
                     items.append({"batch_id": batch_id, "year": year,
                         "batch_num": batch_num, "q_text": current_q,
                         "a_text": " ".join(current_a), "category": categories,
-                        "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                        "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")})
                 current_q = s
                 current_a = []
             elif re.match(r"^A[：:]", s) and current_q:
@@ -1523,7 +1523,7 @@ def parse_and_save_qa_items(content, year, batch_num, batch_id, categories):
             items.append({"batch_id": batch_id, "year": year,
                 "batch_num": batch_num, "q_text": current_q,
                 "a_text": " ".join(current_a), "category": categories,
-                "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")})
+                "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")})
 
         if items:
             supabase.table("qa_items").insert(items).execute()
@@ -1826,7 +1826,7 @@ def run_analysis(year, group_id):
                     "a_text": qa.get("a_text", ""),
                     "category": qa.get("category", categories),
                     "tags": qa.get("tags", []),
-                    "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+                    "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")
                 })
             if items:
                 supabase.table("qa_items").insert(items).execute()
@@ -1838,7 +1838,7 @@ def run_analysis(year, group_id):
                 try:
                     gm_rows = [{
                         "year": title_year, "batch_num": batch_num, "batch_id": batch_id,
-                        "text": gm, "created_at": datetime.now().strftime("%Y/%m/%d %H:%M")
+                        "text": gm, "created_at": (datetime.now() + timedelta(hours=8)).strftime("%Y/%m/%d %H:%M")
                     } for gm in gm_list]
                     supabase.table("general_messages").insert(gm_rows).execute()
                 except Exception as e:
